@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { z } from "zod";
 import {
   SettingsSectionContent,
   SETTINGS_SECTIONS,
@@ -7,13 +8,9 @@ import {
 
 export const Route = createFileRoute("/$slug/app/settings")({
   head: () => ({ meta: [{ title: "Settings — LibrariOS" }] }),
-  validateSearch: (search: Record<string, unknown>): { section: SettingsSection } => {
-    const s = search.section;
-    return {
-      section: (typeof s === "string" && (SETTINGS_SECTIONS as readonly string[]).includes(s)
-        ? s : "profile") as SettingsSection,
-    };
-  },
+  validateSearch: z.object({
+    section: z.enum(SETTINGS_SECTIONS).catch("profile").default("profile"),
+  }),
   component: SettingsPage,
 });
 
