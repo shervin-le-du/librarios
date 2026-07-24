@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate, useRouter, Link } from "@tanstack/react-router";
 import { ArrowLeft, Shield } from "lucide-react";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { UserBubble } from "@/components/UserBubble";
 import {
@@ -12,13 +13,9 @@ import {
 export const Route = createFileRoute("/platform/settings")({
   ssr: false,
   head: () => ({ meta: [{ title: "Settings — LibrariOS" }] }),
-  validateSearch: (search: Record<string, unknown>): { section: SettingsSection } => {
-    const s = search.section;
-    return {
-      section: (typeof s === "string" && (SETTINGS_SECTIONS as readonly string[]).includes(s)
-        ? s : "profile") as SettingsSection,
-    };
-  },
+  validateSearch: z.object({
+    section: z.enum(SETTINGS_SECTIONS).catch("profile").default("profile"),
+  }),
   component: PlatformSettingsPage,
 });
 
