@@ -9,7 +9,7 @@ import { LibrarySwitcher } from "@/components/LibrarySwitcher";
 import { PublishButton } from "@/components/publish/PublishButton";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { InlineText, InlineMultiline } from "@/components/home/InlineEditable";
+import { InlineMultiline } from "@/components/home/InlineEditable";
 import { useHomeEditor } from "@/lib/use-home-editor";
 import {
   BookOpen, ArrowRight,
@@ -221,7 +221,7 @@ function HomeContent({
           />
         )}
         <div className={cn("relative z-10 max-w-5xl mx-auto px-6 md:px-10 pb-12 md:pb-16", cfg.hero_image_url ? "pt-32 md:pt-40" : "pt-16 md:pt-24")}>
-          <InlineText
+          <InlineMultiline
             as="h1"
             value={cfg.hero_heading ?? ""}
             onCommit={(v) => onSave({ hero_heading: v })}

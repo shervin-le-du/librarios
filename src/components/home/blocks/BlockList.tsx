@@ -19,7 +19,7 @@ import {
   sortableKeyboardCoordinates,
   arrayMove,
 } from "@dnd-kit/sortable";
-import { GripVertical, MoveVertical } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { BlockFrame } from "./BlockFrame";
 import { BlockRenderer } from "./BlockRenderer";
 import { AddBlockMenu } from "./AddBlockMenu";
@@ -45,8 +45,7 @@ type Ctx = {
   editMode: boolean;
 };
 
-/** Thin drop-zone between rows. Expands and highlights during a drag so
- *  users clearly see where "move to a new row here" will land. */
+/** Horizontal insertion line between rows. Expands hit area during drag. */
 function RowGap({ index, disabledForActive }: { index: number; disabledForActive: boolean }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `gap:${index}`,
@@ -57,7 +56,7 @@ function RowGap({ index, disabledForActive }: { index: number; disabledForActive
   return (
     <div
       ref={setNodeRef}
-      aria-hidden
+      aria-label="Insert block on new row"
       className={cn(
         "relative w-full transition-all",
         dragging ? "h-6 my-1" : "h-0 my-0 pointer-events-none",
@@ -70,12 +69,6 @@ function RowGap({ index, disabledForActive }: { index: number; disabledForActive
             isOver ? "h-1.5 bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]" : "h-0.5 bg-primary/30",
           )}
         />
-      )}
-      {isOver && (
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium px-2.5 py-1 shadow-md z-10">
-          <MoveVertical className="size-3" />
-          Move to this row
-        </div>
       )}
     </div>
   );
@@ -174,9 +167,10 @@ export function BlockList({
     if (!dragged) return;
     const overId = String(over.id);
 
-    // Pair drop
-    if (overId.startsWith("pair:")) {
-      const targetId = overId.slice("pair:".length);
+    // Pair drop — vertical insertion on left or right edge of target block.
+    if (overId.startsWith("pair-left:") || overId.startsWith("pair-right:")) {
+      const insertBefore = overId.startsWith("pair-left:");
+      const targetId = overId.slice(insertBefore ? "pair-left:".length : "pair-right:".length);
       if (targetId === active.id) return;
       const target = blocks.find((b) => b.id === targetId);
       if (!target) return;
@@ -191,7 +185,8 @@ export function BlockList({
       );
       const fromIdx = tagged.findIndex((b) => b.id === active.id);
       const [pulled] = tagged.splice(fromIdx, 1);
-      const toIdx = tagged.findIndex((b) => b.id === targetId) + 1;
+      const targetIdx = tagged.findIndex((b) => b.id === targetId);
+      const toIdx = insertBefore ? targetIdx : targetIdx + 1;
       tagged.splice(toIdx, 0, pulled);
       onBlocksChange(tagged);
       return;
@@ -310,7 +305,6 @@ function DragGhost({ blocks }: { blocks: Block[] }) {
     <div className="flex items-center gap-2 rounded-md border bg-background shadow-2xl px-3 py-2 text-sm font-medium">
       <GripVertical className="size-4 text-muted-foreground" />
       <span>Moving “{label}”</span>
-      <span className="text-xs text-muted-foreground ml-1">drop on a block to pair · between rows to move</span>
     </div>
   );
 }
