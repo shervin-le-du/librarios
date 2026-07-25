@@ -38,20 +38,18 @@ export function BlockFrame({
     disabled: !editMode,
   });
 
-  // Pair droppable — its rect drives dnd-kit collision detection.
-  const { setNodeRef: setPairRef, isOver: isPairOver } = useDroppable({
-    id: `pair:${id}`,
+  const { setNodeRef: setPairLeftRef, isOver: isPairLeftOver } = useDroppable({
+    id: `pair-left:${id}`,
+    disabled: !editMode || !canPair,
+  });
+  const { setNodeRef: setPairRightRef, isOver: isPairRightOver } = useDroppable({
+    id: `pair-right:${id}`,
     disabled: !editMode || !canPair,
   });
 
   const dnd = useDndContext();
   const activeId = dnd.active?.id ? String(dnd.active.id) : null;
-  const dragging = !!activeId;
   const isSelfDrag = activeId === id;
-  // Show the pair affordance whenever something else is being dragged onto a
-  // block that can accept a pair. Also show a light hint at rest so users
-  // discover the gesture.
-  const showPairHint = editMode && canPair && dragging && !isSelfDrag;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -69,45 +67,24 @@ export function BlockFrame({
         isDragging && "opacity-40 z-30",
       )}
     >
-      {/* Outer outline: hover at rest, primary while a peer is dragged over us. */}
-      <div
-        className={cn(
-          "absolute inset-0 pointer-events-none rounded-sm transition-all",
-          isPairOver
-            ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-            : showPairHint
-              ? "ring-2 ring-primary/30 ring-dashed"
-              : "ring-2 ring-transparent group-hover/block:ring-primary/30",
-        )}
-      />
-      {/* Pair drop target — covers most of the block so aiming is easy. */}
+      <div className="absolute inset-0 pointer-events-none rounded-sm transition-all ring-2 ring-transparent group-hover/block:ring-primary/30" />
       {canPair && (
-        <div
-          ref={setPairRef}
-          className={cn(
-            "absolute inset-4 z-10 rounded-md pointer-events-none flex items-center justify-center transition-all",
-            isPairOver
-              ? "bg-primary/15 opacity-100"
-              : showPairHint
-                ? "bg-primary/5 opacity-100"
-                : "opacity-0",
-          )}
-          aria-hidden
-        >
-          {showPairHint && (
+        <>
+          <div ref={setPairLeftRef} className="absolute inset-y-4 left-4 w-1/2 z-10" aria-hidden />
+          <div ref={setPairRightRef} className="absolute inset-y-4 right-4 w-1/2 z-10" aria-hidden />
+          {isPairLeftOver && !isSelfDrag && (
             <div
-              className={cn(
-                "flex items-center gap-1.5 rounded-full text-xs font-medium px-3 py-1.5 shadow-md transition-all",
-                isPairOver
-                  ? "bg-primary text-primary-foreground scale-105"
-                  : "bg-background/90 text-foreground border",
-              )}
-            >
-              <Columns2 className="size-3.5" />
-              {isPairOver ? "Release to pair side-by-side" : "Drop here to pair"}
-            </div>
+              className="absolute left-4 top-4 bottom-4 w-1 rounded-full bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)] pointer-events-none z-20"
+              aria-hidden
+            />
           )}
-        </div>
+          {isPairRightOver && !isSelfDrag && (
+            <div
+              className="absolute right-4 top-4 bottom-4 w-1 rounded-full bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)] pointer-events-none z-20"
+              aria-hidden
+            />
+          )}
+        </>
       )}
       <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 rounded-full border bg-background shadow-sm px-1 py-0.5 opacity-0 group-hover/block:opacity-100 focus-within:opacity-100 transition-opacity">
         <button
