@@ -1,4 +1,3 @@
-import { sendLovableEmail } from '@lovable.dev/email-js'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createFileRoute } from '@tanstack/react-router'
 
@@ -35,6 +34,65 @@ function getRetryAfterSeconds(error: unknown): number {
   return 60
 }
 
+class ResendApiError extends Error {
+  status: number
+  retryAfterSeconds: number | null
+
+  constructor(message: string, status: number, retryAfterSeconds: number | null = null) {
+    super(message)
+    this.name = 'ResendApiError'
+    this.status = status
+    this.retryAfterSeconds = retryAfterSeconds
+  }
+}
+
+async function sendResendEmail(payload: {
+  from: unknown
+  to: unknown
+  subject: unknown
+  html: unknown
+  text: unknown
+}): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY is not configured')
+  }
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: payload.from,
+      to: payload.to,
+      subject: payload.subject,
+      html: payload.html,
+      text: payload.text,
+    }),
+  })
+
+  if (!response.ok) {
+    const body = await response.text()
+    let retryAfterSeconds: number | null = null
+    if (response.status === 429) {
+      const retryAfter = response.headers.get('Retry-After')
+      if (retryAfter) {
+        const parsed = Number(retryAfter)
+        if (!Number.isNaN(parsed)) {
+          retryAfterSeconds = parsed
+        }
+      }
+    }
+    throw new ResendApiError(
+      `Resend API error (${response.status}): ${body}`,
+      response.status,
+      retryAfterSeconds
+    )
+  }
+}
+
 async function moveToDlq(
   supabase: SupabaseClient<any, any>,
   queue: string,
@@ -64,11 +122,11 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apiKey = process.env.LOVABLE_API_KEY
+        const resendApiKey = process.env.RESEND_API_KEY
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
         const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-        if (!apiKey || !supabaseUrl || !supabaseServiceKey) {
+        if (!resendApiKey || !supabaseUrl || !supabaseServiceKey) {
           console.error('Missing required environment variables')
           return Response.json(
             { error: 'Server configuration error' },
@@ -221,23 +279,13 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
             }
 
             try {
-              await sendLovableEmail(
-                {
-                  run_id: payload.run_id,
-                  to: payload.to,
-                  from: payload.from,
-                  sender_domain: payload.sender_domain,
-                  subject: payload.subject,
-                  html: payload.html,
-                  text: payload.text,
-                  purpose: payload.purpose,
-                  label: payload.label,
-                  idempotency_key: payload.idempotency_key,
-                  unsubscribe_token: payload.unsubscribe_token,
-                  message_id: payload.message_id,
-                },
-                { apiKey, sendUrl: process.env.LOVABLE_SEND_URL }
-              )
+              await sendResendEmail({
+                from: payload.from,
+                to: payload.to,
+                subject: payload.subject,
+                html: payload.html,
+                text: payload.text,
+              })
 
               // Log success
               await supabase.from('email_send_log').insert({
