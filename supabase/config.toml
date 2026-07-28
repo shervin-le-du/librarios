@@ -1,1 +1,6 @@
 project_id = "ftyudyvzcumgtfdsgnol"
+
+# Authenticated with the X-Webhook-Secret header instead of a JWT, since the
+# caller is a Database Webhook rather than a signed-in user.
+[functions.forward-scan-webhook]
+verify_jwt = false
