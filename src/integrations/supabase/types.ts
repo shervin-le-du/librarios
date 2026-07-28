@@ -873,6 +873,36 @@ export type Database = {
           },
         ]
       }
+      webhook_configs: {
+        Row: {
+          auth_header: string | null
+          id: string
+          is_active: boolean
+          key: string
+          updated_at: string
+          updated_by: string
+          url: string | null
+        }
+        Insert: {
+          auth_header?: string | null
+          id?: string
+          is_active?: boolean
+          key: string
+          updated_at?: string
+          updated_by: string
+          url?: string | null
+        }
+        Update: {
+          auth_header?: string | null
+          id?: string
+          is_active?: boolean
+          key?: string
+          updated_at?: string
+          updated_by?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
       suppressed_emails: {
         Row: {
           created_at: string
