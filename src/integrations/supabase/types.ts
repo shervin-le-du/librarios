@@ -51,9 +51,11 @@ export type Database = {
           error_message: string | null
           extracted_data: Json | null
           id: string
+          isbn: string | null
           library_id: string
+          scan_method: string
           status: string
-          storage_path: string
+          storage_path: string | null
           updated_at: string
         }
         Insert: {
@@ -62,9 +64,11 @@ export type Database = {
           error_message?: string | null
           extracted_data?: Json | null
           id?: string
+          isbn?: string | null
           library_id: string
+          scan_method?: string
           status?: string
-          storage_path: string
+          storage_path?: string | null
           updated_at?: string
         }
         Update: {
@@ -73,9 +77,11 @@ export type Database = {
           error_message?: string | null
           extracted_data?: Json | null
           id?: string
+          isbn?: string | null
           library_id?: string
+          scan_method?: string
           status?: string
-          storage_path?: string
+          storage_path?: string | null
           updated_at?: string
         }
         Relationships: [
