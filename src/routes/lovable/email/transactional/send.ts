@@ -20,6 +20,32 @@ function redactEmail(email: string | null | undefined): string {
   return `${localPart[0]}***@${domain}`
 }
 
+const DEFAULT_WORKER_URL = 'https://librarios.com/lovable/email/queue/process'
+
+/** Drain the queue immediately after enqueue. pg_cron + pg_net is the backup. */
+async function kickEmailWorker(serviceKey: string): Promise<void> {
+  const url = process.env.EMAIL_WORKER_URL?.trim() || DEFAULT_WORKER_URL
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      signal: AbortSignal.timeout(20_000),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      console.warn('Email worker kick failed', { status: res.status, body: body.slice(0, 500) })
+      return
+    }
+    const json = await res.json().catch(() => ({}))
+    console.log('Email worker kicked', json)
+  } catch (err) {
+    console.warn('Email worker kick failed (pg_cron will retry)', err)
+  }
+}
+
 // Generate a cryptographically random 32-byte hex token
 function generateToken(): string {
   const bytes = new Uint8Array(32)
@@ -316,6 +342,10 @@ export const Route = createFileRoute("/lovable/email/transactional/send")({
           templateName,
           recipient_redacted: redactEmail(effectiveRecipient),
         })
+
+        // pg_cron → pg_net → worker is flaky; kick the worker directly (same as
+        // manual curl) so preview and production sends don't sit in the queue.
+        await kickEmailWorker(supabaseServiceKey)
 
         return Response.json({ success: true, queued: true })
       },
