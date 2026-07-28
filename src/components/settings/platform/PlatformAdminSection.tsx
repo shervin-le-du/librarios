@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { Copy, Trash2, Plus, Settings2, CheckCircle2, Send } from "lucide-react";
 import { usePlatformAdmin, platformRoleLabel, type PlatformRole } from "@/lib/use-platform";
 import { EmailSettingsEditor } from "@/components/email/EmailSettingsEditor";
-import { sendInviteEmail, expiresInLabel } from "@/lib/email/send-invite";
+import { sendInviteEmail, expiresInLabel, reportInviteEmailOutcome } from "@/lib/email/send-invite";
 import { copyText } from "@/lib/clipboard";
 
 type LibStatus = "active" | "suspended" | "pending_setup";
@@ -142,7 +142,7 @@ function LibrariesTab() {
       qc.invalidateQueries({ queryKey: ["platform-libraries"] });
       qc.invalidateQueries({ queryKey: ["platform-owner-invites"] });
       toast.success("Invitation created");
-      void sendInviteEmail({
+      reportInviteEmailOutcome(sendInviteEmail({
         templateName: "library-owner-invite",
         recipientEmail: recipient,
         idempotencyKey: `library-owner-invite-${token}`,
@@ -155,7 +155,7 @@ function LibrariesTab() {
           acceptUrl: link,
           expiresIn: expiresInLabel(undefined),
         },
-      });
+      }));
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -189,7 +189,9 @@ function LibrariesTab() {
           expiresIn: expiresInLabel(undefined),
         },
       });
-      if ("skipped" in res && res.skipped) throw new Error("Email could not be re-sent");
+      if ("skipped" in res && res.skipped) {
+        throw new Error(`Email could not be re-sent: ${res.detail ?? res.reason}`);
+      }
     },
     onSuccess: () => toast.success("Invitation email re-sent"),
     onError: (e: any) => toast.error(e.message ?? "Failed to resend"),
@@ -502,7 +504,7 @@ function TeamTab() {
       setEmail(""); setFirstName(""); setLastName("");
       qc.invalidateQueries({ queryKey: ["platform-admin-invites"] });
       toast.success("Invitation created");
-      void sendInviteEmail({
+      reportInviteEmailOutcome(sendInviteEmail({
         templateName: "platform-admin-invite",
         recipientEmail: recipient,
         idempotencyKey: `platform-admin-invite-${token}`,
@@ -513,7 +515,7 @@ function TeamTab() {
           acceptUrl: link,
           expiresIn: expiresInLabel(undefined),
         },
-      });
+      }));
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -545,7 +547,9 @@ function TeamTab() {
           expiresIn: expiresInLabel(undefined),
         },
       });
-      if ("skipped" in res && res.skipped) throw new Error("Email could not be re-sent");
+      if ("skipped" in res && res.skipped) {
+        throw new Error(`Email could not be re-sent: ${res.detail ?? res.reason}`);
+      }
     },
     onSuccess: () => toast.success("Invitation email re-sent"),
     onError: (e: any) => toast.error(e.message ?? "Failed to resend"),

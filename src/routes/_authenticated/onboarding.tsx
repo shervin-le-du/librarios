@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { slugify, validateSlug } from "@/lib/tenant";
+import { readPendingInvite } from "@/lib/pending-invite";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({ meta: [{ title: "Create your library — LibrariOS" }] }),
@@ -27,6 +28,18 @@ function Onboarding() {
   // If the user already belongs to a library, leave onboarding.
   useEffect(() => {
     (async () => {
+      // An invitee whose library is already provisioned must claim it, not create
+      // a second one. They can end up here after confirming their email.
+      const pending = readPendingInvite();
+      if (pending?.kind === "owner") {
+        navigate({
+          to: "/accept-invite",
+          search: { token: pending.token, kind: "owner", name: pending.libName, slug: pending.libSlug },
+          replace: true,
+        });
+        return;
+      }
+
       const { data } = await supabase.rpc("get_current_staff");
       const me = (data ?? [])[0];
       if (me) {

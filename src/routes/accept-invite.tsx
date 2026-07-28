@@ -9,12 +9,17 @@ import { Card } from "@/components/ui/card";
 import { BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { slugify, validateSlug } from "@/lib/tenant";
+import { clearPendingInvite, readPendingInvite, savePendingInvite } from "@/lib/pending-invite";
 
 export const Route = createFileRoute("/accept-invite")({
   ssr: false,
   validateSearch: z.object({
     token: z.string().optional(),
     kind: z.enum(["staff", "owner", "platform"]).optional(),
+    // Owner invites carry the confirmed library name/address so they survive an
+    // email-confirmation round trip.
+    name: z.string().optional(),
+    slug: z.string().optional(),
   }),
   head: () => ({ meta: [{ title: "Accept invite — LibrariOS" }] }),
   component: AcceptInvitePage,
@@ -32,6 +37,21 @@ type Invite = {
 };
 
 type OwnerOverrides = { name?: string; slug?: string };
+
+function confirmMessage(inv: Invite): string {
+  const sent = `Your account is created. We sent a confirmation link to ${inv.email}`;
+  if (inv.kind === "owner") return `${sent} — open it to finish taking ownership of ${inv.libraryName}.`;
+  return `${sent} — open it to finish joining.`;
+}
+
+function confirmReturnUrl(token: string, owner?: OwnerOverrides): string {
+  const url = new URL("/accept-invite", window.location.origin);
+  url.searchParams.set("token", token);
+  url.searchParams.set("kind", "owner");
+  if (owner?.name) url.searchParams.set("name", owner.name);
+  if (owner?.slug) url.searchParams.set("slug", owner.slug);
+  return url.toString();
+}
 
 async function accept(kind: InviteKind, token: string, owner?: OwnerOverrides): Promise<string | null> {
   if (kind === "owner") {
@@ -54,7 +74,7 @@ async function accept(kind: InviteKind, token: string, owner?: OwnerOverrides): 
 }
 
 function AcceptInvitePage() {
-  const { token, kind } = Route.useSearch();
+  const { token, kind, name: nameParam, slug: slugParam } = Route.useSearch();
 
   const [invite, setInvite] = useState<Invite | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,6 +86,7 @@ function AcceptInvitePage() {
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
 
   // Owner-only: editable library name + slug
   const [libName, setLibName] = useState("");
@@ -90,8 +111,15 @@ function AcceptInvitePage() {
             heading: `Take ownership of ${row.library_name}`,
             subheading: `Confirm your library's name and web address, then finish setting up your account.`,
           };
-          setLibName(row.library_name);
-          setLibSlug(row.library_slug);
+          // Restore anything the user already confirmed before a required email
+          // confirmation interrupted them: URL params first, then local storage.
+          const carried = readPendingInvite();
+          const savedFor = carried?.token === token ? carried : null;
+          const carriedName = nameParam ?? savedFor?.libName;
+          const carriedSlug = slugParam ?? savedFor?.libSlug;
+          setLibName(carriedName ?? row.library_name);
+          setLibSlug(carriedSlug ?? row.library_slug);
+          if (carriedSlug) setLibSlugTouched(true);
           prefillName = [row.first_name ?? "", row.last_name ?? ""].map(s => s.trim()).filter(Boolean).join(" ");
         } else if (kind === "platform") {
           const { data, error } = await supabase.rpc("get_platform_invitation_by_token", { p_token: token });
@@ -148,9 +176,10 @@ function AcceptInvitePage() {
         setLoading(false);
       }
     })();
-  }, [token, kind]);
+  }, [token, kind, nameParam, slugParam]);
 
   async function afterAccept(inv: Invite, redirectSlug: string | null) {
+    clearPendingInvite();
     if (inv.kind === "platform") {
       window.location.assign("/platform");
       return;
@@ -225,25 +254,37 @@ function AcceptInvitePage() {
       if (invite.kind === "platform") data.platform_invitation_token = token;
       else if (invite.kind === "staff") data.invitation_token = token;
 
+      const overrides = ownerOverrides();
+      // Staff/platform invites are accepted by the DB trigger the moment the auth
+      // user is created, so confirming their email can land on "/" as usual.
+      // Owner invites are still pending at that point and must come back here.
+      const emailRedirectTo =
+        invite.kind === "owner"
+          ? confirmReturnUrl(token, overrides)
+          : `${window.location.origin}/`;
+
       const { data: res, error } = await supabase.auth.signUp({
         email: invite.email, password,
-        options: { emailRedirectTo: `${window.location.origin}/`, data },
+        options: { emailRedirectTo, data },
       });
       if (error) {
         // If the account actually already exists, fall back to sign-in mode.
         if (/already/i.test(error.message)) { setAccountExists(true); return; }
         throw error;
       }
-      toast.success("Account created — welcome!");
-      if (res.session) {
+      if (!res.session) {
         if (invite.kind === "owner") {
-          const slug = await accept("owner", token, ownerOverrides());
-          await afterAccept(invite, slug);
-        } else {
-          await afterAccept(invite, invite.slug ?? null);
+          savePendingInvite({ kind: "owner", token, libName: overrides?.name, libSlug: overrides?.slug });
         }
+        setAwaitingConfirm(true);
+        return;
+      }
+      toast.success("Account created — welcome!");
+      if (invite.kind === "owner") {
+        const slug = await accept("owner", token, overrides);
+        await afterAccept(invite, slug);
       } else {
-        toast.info("Check your email to confirm your account.");
+        await afterAccept(invite, invite.slug ?? null);
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not create account");
@@ -317,10 +358,20 @@ function AcceptInvitePage() {
             </>
           ) : invite ? (
             <>
-              <h2 className="text-xl font-semibold mb-1">{invite.heading}</h2>
-              <p className="text-sm text-muted-foreground mb-6">{invite.subheading}</p>
+              <h2 className="text-xl font-semibold mb-1">
+                {awaitingConfirm ? "Confirm your email address" : invite.heading}
+              </h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                {awaitingConfirm ? confirmMessage(invite) : invite.subheading}
+              </p>
 
-              {currentEmail && emailMatches ? (
+              {awaitingConfirm ? (
+                <p className="text-sm text-muted-foreground">
+                  {isOwner
+                    ? "The link brings you back to this page, where the last step is one click. You can safely close this tab in the meantime."
+                    : "You can safely close this tab in the meantime."}
+                </p>
+              ) : currentEmail && emailMatches ? (
                 <div className="space-y-4">
                   <p className="text-sm">
                     You're signed in as <span className="font-medium">{currentEmail}</span>.
