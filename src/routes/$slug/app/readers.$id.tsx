@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentLibrary } from "@/lib/use-current-library";
 import { useCurrentStaff } from "@/lib/use-current-staff";
-import { sendInviteEmail, expiresInLabel } from "@/lib/email/send-invite";
+import { sendInviteEmail, expiresInLabel, reportInviteEmailOutcome } from "@/lib/email/send-invite";
 
 export const Route = createFileRoute("/$slug/app/readers/$id")({
   head: () => ({ meta: [{ title: "Reader — LibrariOS" }] }),
@@ -252,7 +252,7 @@ function MemberLoginCard({ readerId, slug, readerName }: { readerId: string; slu
       const { data: r } = await supabase.from("readers").select("email, first_name, last_name").eq("id", readerId).maybeSingle();
       const emailAddr = (r as any)?.email as string | null | undefined;
       if (emailAddr) {
-        void sendInviteEmail({
+        reportInviteEmailOutcome(sendInviteEmail({
           templateName: "member-invite",
           recipientEmail: emailAddr,
           idempotencyKey: `member-invite-${token}`,
@@ -264,7 +264,7 @@ function MemberLoginCard({ readerId, slug, readerName }: { readerId: string; slu
             acceptUrl: `${window.location.origin}/${slug}/activate/${token}`,
             expiresIn: expiresInLabel(undefined),
           },
-        });
+        }));
       }
     },
     onError: (e: any) => toast.error(e.message),

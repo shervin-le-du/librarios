@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Copy, Trash2, Settings2, Send } from "lucide-react";
 import { EmailSettingsEditor } from "@/components/email/EmailSettingsEditor";
-import { sendInviteEmail, expiresInLabel } from "@/lib/email/send-invite";
+import { sendInviteEmail, expiresInLabel, reportInviteEmailOutcome } from "@/lib/email/send-invite";
 import { copyText } from "@/lib/clipboard";
 
 import { assignableRoles, staffRoleLabel, STAFF_ROLE_RANK, type StaffRole } from "@/lib/use-current-staff";
@@ -89,7 +89,7 @@ export function LibraryTeamSection() {
       setEmail(""); setFirstName(""); setLastName("");
       qc.invalidateQueries({ queryKey: ["team-invites"] });
       toast.success("Invitation created");
-      void sendInviteEmail({
+      reportInviteEmailOutcome(sendInviteEmail({
         templateName: "library-staff-invite",
         recipientEmail: invitedEmail,
         idempotencyKey: `library-staff-invite-${token}`,
@@ -102,7 +102,7 @@ export function LibraryTeamSection() {
           acceptUrl: link,
           expiresIn: expiresInLabel(undefined),
         },
-      });
+      }));
     },
     onError: (err: any) => toast.error(err.message ?? "Failed to invite"),
   });
@@ -133,7 +133,9 @@ export function LibraryTeamSection() {
           expiresIn: expiresInLabel(undefined),
         },
       });
-      if ("skipped" in res && res.skipped) throw new Error("Email could not be re-sent");
+      if ("skipped" in res && res.skipped) {
+        throw new Error(`Email could not be re-sent: ${res.detail ?? res.reason}`);
+      }
     },
     onSuccess: () => toast.success("Invitation email re-sent"),
     onError: (err: any) => toast.error(err.message ?? "Failed to resend"),

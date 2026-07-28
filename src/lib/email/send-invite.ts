@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { supabase } from '@/integrations/supabase/client'
 import type { InviteTemplateKey } from '@/lib/email-templates/_meta'
 import { TEMPLATE_META } from '@/lib/email-templates/_meta'
@@ -71,16 +72,69 @@ export async function sendInviteEmail(args: SendInviteEmailArgs) {
         templateData,
       }),
     })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      console.warn('Invite email send failed', { status: res.status, json })
-      return { skipped: true as const, reason: 'send_failed', status: res.status }
+
+    const raw = await res.text()
+    let json: any = undefined
+    try {
+      json = JSON.parse(raw)
+    } catch {
+      // Not JSON: the request never reached our server route. Either the app was
+      // deployed without server handlers, or a platform layer (e.g. Vercel
+      // deployment protection) answered with an HTML page first.
     }
+
+    if (!res.ok) {
+      const detail =
+        json?.protection || /Protected deployment/i.test(raw)
+          ? 'the deployment is protected, so the request never reached the server route'
+          : json === undefined
+            ? `the send route returned ${res.status} with a non-JSON body`
+            : (json.error?.message ?? json.error ?? `HTTP ${res.status}`)
+      console.warn('Invite email send failed', { status: res.status, detail, body: raw.slice(0, 500) })
+      return { skipped: true as const, reason: 'send_failed', status: res.status, detail: String(detail) }
+    }
+
+    if (json === undefined) {
+      console.warn('Invite email send got a non-JSON success response', { body: raw.slice(0, 500) })
+      return {
+        skipped: true as const,
+        reason: 'send_route_missing',
+        status: res.status,
+        detail: 'the send route is not served by this deployment',
+      }
+    }
+
+    if (json.success === false) {
+      return { skipped: true as const, reason: json.reason ?? 'rejected', status: res.status, detail: String(json.reason ?? 'rejected') }
+    }
+
     return { sent: true as const, ...json }
   } catch (err) {
     console.warn('Invite email send crashed', err)
-    return { skipped: true as const, reason: 'network_error' }
+    const detail = err instanceof Error ? err.message : 'network error'
+    return { skipped: true as const, reason: 'network_error', detail }
   }
+}
+
+export type SendInviteResult = Awaited<ReturnType<typeof sendInviteEmail>>
+
+/**
+ * Surfaces a failed background send instead of dropping it. The invitation row
+ * already exists at this point, so this is a warning, not an error: the copyable
+ * link in the UI remains a working fallback.
+ */
+export function reportInviteEmailOutcome(pending: Promise<SendInviteResult>) {
+  void pending
+    .then((res) => {
+      if ('sent' in res) return
+      const detail = 'detail' in res && res.detail ? res.detail : res.reason
+      toast.warning(`Invitation saved, but the email wasn't sent: ${detail}. Share the link manually.`)
+    })
+    .catch((err) => {
+      console.warn('Invite email send threw', err)
+      const detail = err instanceof Error ? err.message : 'unknown error'
+      toast.warning(`Invitation saved, but the email wasn't sent: ${detail}. Share the link manually.`)
+    })
 }
 
 export function expiresInLabel(hours: number | undefined): string {
