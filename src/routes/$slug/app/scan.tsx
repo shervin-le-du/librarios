@@ -1,11 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentStaff } from "@/lib/use-current-staff";
+import { BarcodeScanner } from "@/components/scan/BarcodeScanner";
+import { formatIsbn13 } from "@/lib/isbn";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Camera, Loader2, CheckCircle2, XCircle, ArrowLeft, RefreshCw, Upload } from "lucide-react";
+import {
+  Camera,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  ArrowLeft,
+  RefreshCw,
+  ScanLine,
+  Upload,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/$slug/app/scan")({
@@ -13,7 +24,13 @@ export const Route = createFileRoute("/$slug/app/scan")({
   component: ScanPage,
 });
 
+/** Keeps the "ISBN detected" checkmark on screen long enough to be read. */
+const CONFIRMATION_MS = 700;
+
 type Phase =
+  | { kind: "barcode" }
+  | { kind: "isbn-detected"; isbn: string }
+  | { kind: "isbn-error"; message: string; isbn: string }
   | { kind: "capture" }
   | { kind: "preview"; file: File; previewUrl: string }
   | { kind: "uploading"; step: "compressing" | "storage" | "queue" }
@@ -57,7 +74,7 @@ async function compressImage(file: File): Promise<File> {
 function ScanPage() {
   const { slug } = Route.useParams();
   const me = useCurrentStaff();
-  const [phase, setPhase] = useState<Phase>({ kind: "capture" });
+  const [phase, setPhase] = useState<Phase>({ kind: "barcode" });
   const inputRef = useRef<HTMLInputElement>(null);
 
   const libraryId = me.data?.library_id ?? null;
@@ -71,6 +88,54 @@ function ScanPage() {
   function onPickFile(f: File) {
     setPhase({ kind: "preview", file: f, previewUrl: URL.createObjectURL(f) });
   }
+
+  const queueBarcodeJob = useCallback(
+    async (isbn: string) => {
+      if (!libraryId) {
+        toast.error("No active library");
+        return;
+      }
+      setPhase({ kind: "isbn-detected", isbn });
+      const confirmationShown = new Promise((r) => setTimeout(r, CONFIRMATION_MS));
+
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) {
+        await confirmationShown;
+        setPhase({ kind: "isbn-error", message: "Signed out", isbn });
+        return;
+      }
+      const ins = await supabase
+        .from("book_scan_jobs")
+        .insert({
+          library_id: libraryId,
+          scan_method: "barcode",
+          isbn,
+          storage_path: null,
+          created_by: userId,
+          status: "pending",
+        })
+        .select("id")
+        .single();
+
+      await confirmationShown;
+      if (ins.error || !ins.data) {
+        setPhase({
+          kind: "isbn-error",
+          message: ins.error?.message ?? "Could not queue job",
+          isbn,
+        });
+        return;
+      }
+      setPhase({ kind: "status", jobId: ins.data.id });
+    },
+    [libraryId],
+  );
+
+  const onBarcodeDetected = useCallback(
+    (isbn: string) => void queueBarcodeJob(isbn),
+    [queueBarcodeJob],
+  );
+  const onBarcodeFallback = useCallback(() => setPhase({ kind: "capture" }), []);
 
   async function doUpload(file: File) {
     if (!libraryId) {
@@ -103,6 +168,7 @@ function ScanPage() {
       .from("book_scan_jobs")
       .insert({
         library_id: libraryId,
+        scan_method: "photo",
         storage_path: storagePath,
         created_by: (await supabase.auth.getUser()).data.user!.id,
         status: "pending",
@@ -125,7 +191,13 @@ function ScanPage() {
     }
     const ins = await supabase
       .from("book_scan_jobs")
-      .insert({ library_id: libraryIdArg, storage_path: storagePath, created_by: userId, status: "pending" })
+      .insert({
+        library_id: libraryIdArg,
+        scan_method: "photo",
+        storage_path: storagePath,
+        created_by: userId,
+        status: "pending",
+      })
       .select("id")
       .single();
     if (ins.error || !ins.data) {
@@ -142,6 +214,19 @@ function ScanPage() {
     }
   }, [phase.kind]);
 
+  const description = useMemo(() => {
+    switch (phase.kind) {
+      case "barcode":
+      case "isbn-detected":
+      case "isbn-error":
+        return "Scan the ISBN barcode on the back cover. We'll queue it for automatic data extraction.";
+      case "status":
+        return "We're extracting the book's details. This page updates automatically.";
+      default:
+        return "Snap or upload a photo of the cover. We'll queue it for automatic data extraction.";
+    }
+  }, [phase.kind]);
+
   return (
     <div className="p-6 md:p-10 max-w-2xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
@@ -154,9 +239,38 @@ function ScanPage() {
         </Link>
       </div>
       <h1 className="text-3xl font-semibold mb-2">{heading}</h1>
-      <p className="text-muted-foreground mb-6">
-        Snap or upload a photo of the cover. We'll queue it for automatic data extraction.
-      </p>
+      <p className="text-muted-foreground mb-6">{description}</p>
+
+      {phase.kind === "barcode" && (
+        <BarcodeScanner onDetected={onBarcodeDetected} onFallback={onBarcodeFallback} />
+      )}
+
+      {phase.kind === "isbn-detected" && (
+        <Card className="p-8 text-center space-y-3">
+          <CheckCircle2 className="size-10 mx-auto text-green-600 animate-in zoom-in-50 duration-300" />
+          <div className="space-y-1">
+            <div className="font-medium">ISBN detected</div>
+            <div className="font-mono text-lg">{formatIsbn13(phase.isbn)}</div>
+          </div>
+        </Card>
+      )}
+
+      {phase.kind === "isbn-error" && (
+        <Card className="p-6 space-y-4">
+          <div className="rounded-md bg-destructive/10 text-destructive px-3 py-2 text-sm">
+            ISBN {formatIsbn13(phase.isbn)} was detected, but queuing the job failed:{" "}
+            {phase.message}
+          </div>
+          <div className="flex flex-wrap gap-2 justify-end">
+            <Button variant="outline" onClick={() => setPhase({ kind: "barcode" })}>
+              Scan again
+            </Button>
+            <Button className="gap-2" onClick={() => void queueBarcodeJob(phase.isbn)}>
+              <RefreshCw className="size-4" /> Retry queuing
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {phase.kind === "capture" && (
         <Card className="p-8 text-center space-y-4">
@@ -184,6 +298,13 @@ function ScanPage() {
               <Camera className="size-4" /> Open camera / pick photo
             </Button>
           </div>
+          <button
+            type="button"
+            onClick={() => setPhase({ kind: "barcode" })}
+            className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground inline-flex items-center gap-1"
+          >
+            <ScanLine className="size-3" /> Scan the barcode instead
+          </button>
         </Card>
       )}
 
@@ -223,7 +344,7 @@ function ScanPage() {
             Photo uploaded, but queuing the job failed: {phase.message}
           </div>
           <div className="flex flex-wrap gap-2 justify-end">
-            <Button variant="outline" onClick={() => setPhase({ kind: "capture" })}>New scan</Button>
+            <Button variant="outline" onClick={() => setPhase({ kind: "barcode" })}>New scan</Button>
             <Button className="gap-2" onClick={() => retryQueue(phase.libraryId, phase.storagePath)}>
               <RefreshCw className="size-4" /> Retry queuing
             </Button>
@@ -232,7 +353,7 @@ function ScanPage() {
       )}
 
       {phase.kind === "status" && (
-        <ScanStatus jobId={phase.jobId} onNew={() => setPhase({ kind: "capture" })} />
+        <ScanStatus jobId={phase.jobId} onNew={() => setPhase({ kind: "barcode" })} />
       )}
     </div>
   );
