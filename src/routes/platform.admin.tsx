@@ -29,7 +29,7 @@ function PlatformAdminPage() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <aside className="flex w-52 sm:w-56 md:w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         <Link
           to="/platform"
           className="px-5 py-6 flex items-center gap-2.5 border-b border-sidebar-border hover:bg-sidebar-accent/40 transition-colors"
@@ -93,29 +93,7 @@ function PlatformAdminPage() {
         </div>
       </aside>
 
-      <nav className="md:hidden flex border-b bg-sidebar overflow-x-auto">
-        <Link
-          to="/platform"
-          className="px-4 py-2.5 text-sm whitespace-nowrap text-muted-foreground flex items-center gap-1"
-        >
-          <ArrowLeft className="size-3.5" /> Platform
-        </Link>
-        {groups.flatMap((g) => g.items).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={item.onClick}
-            className={
-              "px-4 py-2.5 text-sm whitespace-nowrap " +
-              (item.active ? "border-b-2 border-primary font-medium text-primary" : "text-muted-foreground")
-            }
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
-
-      <main className="flex-1 min-w-0 p-6 md:p-10">
+      <main className="flex-1 min-w-0 p-4 sm:p-6 md:p-10">
         <div className="max-w-4xl">
           <SettingsSectionContent section={section} onSectionChange={onSectionChange} />
         </div>
