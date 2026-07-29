@@ -88,34 +88,98 @@ export const getIsbnWebhookStatus = createServerFn({ method: "GET" })
     return { configured: !!cfg?.isbn_webhook_url };
   });
 
-const TestInput = z.object({
-  url: z.string().url().regex(/^https:\/\//, "URL must use https://"),
-  auth_header: z.string().max(2000).optional().nullable(),
-});
+const BOOK_SCAN_WEBHOOK_KEY = "book_scan_processing";
 
-// 1x1 transparent PNG, used so super admins can sanity-check a webhook
-// returns 200 + a valid shape without uploading a real cover.
-const TEST_IMAGE_B64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+export type BookScanWebhookConfig = {
+  id: string | null;
+  url: string | null;
+  is_active: boolean;
+  has_auth: boolean;
+  updated_at: string | null;
+};
 
-export const testIsbnWebhook = createServerFn({ method: "POST" })
+/** Loads book-scan webhook settings without exposing the auth header to the browser. */
+export const getBookScanWebhookConfig = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => TestInput.parse(data))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ context }): Promise<BookScanWebhookConfig | null> => {
     const { supabase } = context;
-    const { data: isSuper, error } = await supabase.rpc("is_platform_super_admin");
+    const { data: isAdmin, error: adminErr } = await supabase.rpc("is_platform_admin");
+    if (adminErr) throw new Error(adminErr.message);
+    if (!isAdmin) return null;
+
+    const { data, error } = await supabase
+      .from("webhook_configs")
+      .select("id, url, is_active, updated_at, auth_header")
+      .eq("key", BOOK_SCAN_WEBHOOK_KEY)
+      .maybeSingle();
     if (error) throw new Error(error.message);
-    if (!isSuper) throw new Error("Not authorized");
+
+    if (!data) {
+      return { id: null, url: null, is_active: false, has_auth: false, updated_at: null };
+    }
+
+    return {
+      id: data.id,
+      url: data.url,
+      is_active: data.is_active,
+      has_auth: !!(data.auth_header?.trim()),
+      updated_at: data.updated_at,
+    };
+  });
+
+/** Synthetic Supabase Database Webhook envelope for a book_scan_jobs INSERT. */
+function buildBookScanTestPayload() {
+  const now = new Date().toISOString();
+  return {
+    type: "INSERT",
+    table: "book_scan_jobs",
+    schema: "public",
+    record: {
+      id: "00000000-0000-4000-8000-000000000001",
+      library_id: "00000000-0000-4000-8000-000000000002",
+      storage_path: null,
+      status: "pending",
+      extracted_data: null,
+      error_message: null,
+      created_by: "00000000-0000-4000-8000-000000000003",
+      created_at: now,
+      updated_at: now,
+      scan_method: "barcode",
+      isbn: "9780143127741",
+    },
+    old_record: null,
+  };
+}
+
+/** POSTs a realistic book_scan_jobs payload to the saved webhook URL (bypasses is_active). */
+export const testBookScanWebhook = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data: isAdmin, error: adminErr } = await supabase.rpc("is_platform_admin");
+    if (adminErr) throw new Error(adminErr.message);
+    if (!isAdmin) throw new Error("Not authorized");
+
+    const { data: config, error } = await supabase
+      .from("webhook_configs")
+      .select("url, auth_header")
+      .eq("key", BOOK_SCAN_WEBHOOK_KEY)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+
+    const url = config?.url?.trim() ?? "";
+    if (!url) throw new Error("No webhook URL saved yet. Save a URL first.");
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20_000);
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (data.auth_header) headers["Authorization"] = data.auth_header;
-      const res = await fetch(data.url, {
+      const authHeader = config?.auth_header?.trim();
+      if (authHeader) headers["Authorization"] = authHeader;
+      const res = await fetch(url, {
         method: "POST",
         headers,
-        body: JSON.stringify({ image_base64: TEST_IMAGE_B64, mime_type: "image/png" }),
+        body: JSON.stringify(buildBookScanTestPayload()),
         signal: controller.signal,
       });
       const text = await res.text();
