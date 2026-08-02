@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HslColorPicker } from "react-colorful";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RotateCcw, Pipette, Plus, Minus } from "lucide-react";
+import { RotateCcw, Plus, Minus } from "lucide-react";
+import { EyedropperButton } from "@/components/EyedropperButton";
 import {
   fillToCss,
   parseFill,
@@ -106,6 +107,16 @@ export function ColorPickerCard({
 
   const isDefault = color === defaultColor;
   const handleReset = () => onChange(defaultColor);
+  const eyedropperPickRef = useRef<(hex: string) => void>(() => {});
+  const bindEyedropper = useCallback((pick: (hex: string) => void) => {
+    eyedropperPickRef.current = pick;
+  }, []);
+
+  useEffect(() => {
+    if (fillMode === "solid") {
+      eyedropperPickRef.current = (hex) => onChange(hex);
+    }
+  }, [fillMode, onChange]);
 
   return (
     <div className="rounded-lg border border-border bg-card p-5 space-y-3">
@@ -178,16 +189,18 @@ export function ColorPickerCard({
                   ],
                 }
           }
+          onBindEyedropper={bindEyedropper}
           onChange={(f) => onChange(serializeFill(f))}
         />
 
       )}
 
-      <div className="pt-1">
+      <div className="flex items-center justify-between pt-1">
         <Button variant="ghost" size="sm" onClick={handleReset} disabled={isDefault} title="Reset to default">
           <RotateCcw className="mr-1 size-3" />
           Reset
         </Button>
+        <EyedropperButton onPick={(hex) => eyedropperPickRef.current(hex)} />
       </div>
     </div>
   );
@@ -215,18 +228,6 @@ function SolidEditor({
     setRgbInput(hslToRgbStr(h));
   }, [hex]);
 
-  const supportsEyeDropper = typeof window !== "undefined" && "EyeDropper" in window;
-  const handleEyedropper = async () => {
-    if (!supportsEyeDropper) return;
-    try {
-      const eyeDropper = new (window as any).EyeDropper();
-      const { sRGBHex } = await eyeDropper.open();
-      onChange(sRGBHex);
-    } catch {
-      // cancelled
-    }
-  };
-
   return (
     <Tabs value={mode} onValueChange={(v) => setMode(v as ColorViewMode)} className="w-full">
       <TabsList className="grid w-full grid-cols-3">
@@ -238,14 +239,6 @@ function SolidEditor({
       <TabsContent value="picker" className="space-y-3 pt-2">
         <div className="flex justify-center rounded-lg border border-border bg-background/50 p-3">
           <HslColorPicker color={hslObj} onChange={(c) => onChange(hslToHex(c))} />
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-12 flex-1 rounded-lg border-2 border-border" style={{ backgroundColor: hex }} />
-          {supportsEyeDropper && (
-            <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={handleEyedropper} title="Pick color from screen">
-              <Pipette className="size-4" />
-            </Button>
-          )}
         </div>
       </TabsContent>
 
@@ -304,14 +297,6 @@ function SolidEditor({
             className="font-mono"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-12 flex-1 rounded-lg border-2 border-border" style={{ backgroundColor: hex }} />
-          {supportsEyeDropper && (
-            <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={handleEyedropper} title="Pick color from screen">
-              <Pipette className="size-4" />
-            </Button>
-          )}
-        </div>
       </TabsContent>
     </Tabs>
   );
@@ -322,9 +307,11 @@ function SolidEditor({
 function GradientEditor({
   fill,
   onChange,
+  onBindEyedropper,
 }: {
   fill: GradientFill;
   onChange: (f: GradientFill) => void;
+  onBindEyedropper?: (pick: (hex: string) => void) => void;
 }) {
   const [selected, setSelected] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -333,6 +320,15 @@ function GradientEditor({
   const activeHsl = hexToHsl(activeStop.color);
 
   const previewCss = fillToCss(fill);
+
+  useEffect(() => {
+    onBindEyedropper?.((hex) => {
+      onChange({
+        ...fill,
+        stops: fill.stops.map((s, i) => (i === selected ? { ...s, color: hex } : s)),
+      });
+    });
+  }, [fill, selected, onChange, onBindEyedropper]);
 
   const setStops = (nextStops: GradientStop[]) => {
     const sorted = [...nextStops].sort((a, b) => a.position - b.position);

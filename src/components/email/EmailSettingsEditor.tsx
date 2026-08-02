@@ -13,17 +13,16 @@ import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { Monitor, Smartphone, RotateCcw } from 'lucide-react'
 import { render as renderEmail } from '@react-email/render'
+import { ColorPickerCard } from '@/components/ColorPickerCard'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { COLOR_ACCENT_PRESETS } from '@/lib/branding'
 import { TEMPLATE_META, type InviteTemplateKey } from '@/lib/email-templates/_meta'
 import { TEMPLATES } from '@/lib/email-templates/registry'
 import { substitute } from '@/lib/email-templates/_shared'
 import { expiresInLabel } from '@/lib/email/send-invite'
 
 
-const ACCENT_PRESETS = [
-  '#2563eb', '#0ea5e9', '#0d9488', '#10b981',
-  '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6',
-  '#111827', '#6b7280',
-]
+const ACCENT_DEFAULT = '#2563eb'
 
 interface EmailSettings {
   accent_color?: string
@@ -243,18 +242,33 @@ export function EmailSettingsEditor({
               <TabsContent value="branding" className="space-y-5 mt-4">
                 <div className="space-y-2">
                   <Label>Accent color</Label>
-                  <div className="grid grid-cols-10 gap-1.5">
-                    {ACCENT_PRESETS.map((c) => (
-                      <button
-                        key={c} type="button"
-                        onClick={() => setAccent(c)}
-                        className={`h-7 rounded-md border-2 ${accent === c ? 'border-foreground' : 'border-transparent'}`}
-                        style={{ backgroundColor: c }}
-                        aria-label={c}
-                      />
-                    ))}
+                  <div className="flex items-center gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="size-9 shrink-0 rounded-md border border-input"
+                          style={{ backgroundColor: accent || s.accent_color || ACCENT_DEFAULT }}
+                          aria-label="Pick accent color"
+                        />
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[340px] p-0 border-none bg-transparent shadow-none" align="start">
+                        <ColorPickerCard
+                          label="Accent color"
+                          color={accent || s.accent_color || ACCENT_DEFAULT}
+                          presets={COLOR_ACCENT_PRESETS}
+                          onChange={setAccent}
+                          defaultColor={s.accent_color ?? ACCENT_DEFAULT}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Input
+                      value={accent}
+                      onChange={(e) => setAccent(e.target.value)}
+                      placeholder={s.accent_color ?? ACCENT_DEFAULT}
+                      className="font-mono"
+                    />
                   </div>
-                  <Input value={accent} onChange={(e) => setAccent(e.target.value)} placeholder={s.accent_color ?? '#2563eb'} />
                 </div>
 
                 <div className="space-y-2">

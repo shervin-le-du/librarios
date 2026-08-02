@@ -36,9 +36,8 @@ import {
   type ButtonShape,
   type LibraryBranding,
 } from "@/lib/branding";
-import { ColorPickerCard, hexToHsl, hslToHex } from "@/components/ColorPickerCard";
+import { ColorPickerCard } from "@/components/ColorPickerCard";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { HslColorPicker } from "react-colorful";
 import { IconPickerPanel } from "./IconPicker";
 import { DynamicIcon, type IconName } from "@/lib/dynamic-icon";
 
