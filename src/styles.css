@@ -40,6 +40,8 @@
   --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
+  --color-navbar: hsl(var(--navbar, var(--background)));
+  --color-navbar-foreground: hsl(var(--navbar-foreground, var(--foreground)));
   --color-cta-bg: hsl(var(--cta-bg));
   --color-cta-foreground: hsl(var(--cta-foreground));
   --color-cta-accent: hsl(var(--cta-accent));

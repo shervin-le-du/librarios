@@ -326,10 +326,9 @@ function Header({
       className={cn(
         "sticky top-0 z-30 transition-all duration-300",
         scrolledPastHero
-          ? "border-b backdrop-blur"
+          ? "border-b backdrop-blur bg-navbar/80 text-navbar-foreground"
           : "bg-transparent border-transparent",
       )}
-      style={scrolledPastHero ? { backgroundColor: "color-mix(in srgb, var(--navbar, var(--background)) 80%, transparent)", color: "var(--navbar-foreground, var(--foreground))" } : undefined}
     >
       <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link to="/$slug" params={{ slug }} className="flex items-center gap-2.5 min-w-0">
