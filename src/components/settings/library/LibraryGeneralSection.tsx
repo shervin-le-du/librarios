@@ -25,7 +25,6 @@ export function LibraryGeneralSection({ slug, role }: { slug: string; role: Staf
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [brand, setBrand] = useState("#7c3aed");
   const [newSlug, setNewSlug] = useState("");
   const [slugError, setSlugError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -37,7 +36,6 @@ export function LibraryGeneralSection({ slug, role }: { slug: string; role: Staf
     setEmail(lib.data.contact_email ?? "");
     setPhone(lib.data.contact_phone ?? "");
     setAddress(lib.data.contact_address ?? "");
-    setBrand(lib.data.brand_color ?? "#7c3aed");
     setNewSlug(lib.data.subdomain ?? slug);
   }, [lib.data, slug]);
 
@@ -53,7 +51,6 @@ export function LibraryGeneralSection({ slug, role }: { slug: string; role: Staf
         contact_email: email.trim() || null,
         contact_phone: phone.trim() || null,
         contact_address: address.trim() || null,
-        brand_color: brand || null,
       }).eq("id", lib.data.id);
       if (error) throw error;
     },
