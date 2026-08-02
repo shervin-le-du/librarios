@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Pipette } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,13 +18,16 @@ export function EyedropperButton({
   size = "sm",
   title = "Pick color from screen",
 }: EyedropperButtonProps) {
+  const [available, setAvailable] = useState(false);
+
+  useEffect(() => {
+    setAvailable(supportsEyedropper());
+  }, []);
+
+  if (!available) return null;
+
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
-
-    if (!supportsEyedropper()) {
-      toast.error("Screen color picking isn't supported in this browser. Try Chrome, Edge, or Firefox 131+.");
-      return;
-    }
 
     // open() must be invoked synchronously from the click handler (user activation).
     const pending = openEyedropper();
