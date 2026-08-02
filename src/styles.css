@@ -50,6 +50,9 @@
   --color-button-secondary-fg: var(--button-secondary-fg, var(--secondary-foreground));
   --color-button-destructive-bg: var(--button-destructive-bg, var(--destructive));
   --color-button-destructive-fg: var(--button-destructive-fg, var(--destructive-foreground));
+  --color-text-focus: var(--text-focus, var(--primary));
+  --color-text-hover: var(--text-hover, var(--foreground));
+  --color-text-hyperlink: var(--text-hyperlink, var(--primary));
 
   --font-sans: "Epilogue", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Urbanist", ui-sans-serif, system-ui, sans-serif;
@@ -108,6 +111,10 @@
   --cta-foreground: oklch(1 0 0);              /* white */
   --cta-accent: oklch(0.58 0.2 260);             /* bright blue #3b82f6 */
   --cta-accent-foreground: oklch(1 0 0);         /* white */
+
+  --text-focus: oklch(0.55 0.2 260);
+  --text-hover: oklch(0.25 0.02 250);
+  --text-hyperlink: oklch(0.55 0.2 260);
 }
 
 @layer base {
@@ -120,6 +127,13 @@
     -webkit-font-smoothing: antialiased;
   }
   h1, h2, h3, h4, h5 { font-family: var(--font-display); letter-spacing: -0.02em; }
+  a:not([class]) {
+    color: var(--color-text-hyperlink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  a:not([class]):hover { color: var(--color-text-hover); }
+  a:not([class]):focus-visible { color: var(--color-text-focus); outline: none; }
 }
 
 /* ── Gradient fill layering ────────────────────────────────────────── */

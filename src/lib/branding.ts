@@ -30,7 +30,6 @@ export type LibraryBranding = {
   secondary?: string;
   // Surface
   background?: string;
-  foreground?: string;
   card?: string;
   muted?: string;
   border?: string;
@@ -43,6 +42,11 @@ export type LibraryBranding = {
   // Typography
   heading_font?: string;
   body_font?: string;
+  /** Default body text (maps to --foreground). */
+  foreground?: string;
+  text_focus?: string;
+  text_hover?: string;
+  text_hyperlink?: string;
   // Buttons — legacy (kept for back-compat / migration on read)
   button_radius?: "square" | "small" | "medium" | "large" | "pill";
   button_style?: "solid" | "outline" | "soft";
@@ -157,6 +161,46 @@ export const COLOR_FOREGROUND_PRESETS = [
   { name: "paper", hex: "#f7f5f0" },
   { name: "stone", hex: "#e7e5e4" },
 ];
+
+export const COLOR_TEXT_FOCUS_PRESETS = [
+  { name: "blue", hex: "#2563eb" },
+  { name: "indigo", hex: "#4f46e5" },
+  { name: "violet", hex: "#7c3aed" },
+  { name: "teal", hex: "#0d9488" },
+  { name: "ink", hex: "#0f172a" },
+  { name: "amber", hex: "#d97706" },
+  { name: "rose", hex: "#e11d48" },
+  { name: "white", hex: "#ffffff" },
+];
+
+export const COLOR_TEXT_HOVER_PRESETS = [
+  { name: "ink", hex: "#0f172a" },
+  { name: "graphite", hex: "#1e293b" },
+  { name: "slate", hex: "#334155" },
+  { name: "charcoal", hex: "#111827" },
+  { name: "blue", hex: "#1d4ed8" },
+  { name: "indigo", hex: "#4338ca" },
+  { name: "white", hex: "#ffffff" },
+  { name: "stone", hex: "#78716c" },
+];
+
+export const COLOR_TEXT_HYPERLINK_PRESETS = [
+  { name: "blue", hex: "#2563eb" },
+  { name: "indigo", hex: "#4f46e5" },
+  { name: "sky", hex: "#0284c7" },
+  { name: "teal", hex: "#0d9488" },
+  { name: "violet", hex: "#7c3aed" },
+  { name: "rose", hex: "#e11d48" },
+  { name: "ink", hex: "#0f172a" },
+  { name: "amber", hex: "#d97706" },
+];
+
+export const TEXT_COLOR_DEFAULTS = {
+  neutral: "#0f172a",
+  focus: "#2563eb",
+  hover: "#1e293b",
+  hyperlink: "#2563eb",
+} as const;
 
 export const COLOR_SECONDARY_PRESETS = [
   { name: "slate", hex: "#e2e8f0" },
@@ -398,6 +442,7 @@ const BRAND_VARS = [
   "sidebar-accent", "sidebar-accent-foreground",
   "sidebar-border", "sidebar-ring",
   "navbar", "navbar-foreground",
+  "text-focus", "text-hover", "text-hyperlink",
   "cta-bg", "cta-foreground", "cta-accent", "cta-accent-foreground",
   "button-bg", "button-fg", "button-secondary-bg", "button-secondary-fg",
   "button-destructive-bg", "button-destructive-fg",
@@ -491,6 +536,14 @@ export function applyBrandingToDocument(branding: LibraryBranding | null | undef
   // Background + foreground
   setVar("background", bgHsl);
   setVar("foreground", fgHsl);
+
+  // Text interaction colors — fall back to brand defaults when unset
+  setVar("text-focus", b?.text_focus ? hexToHsl(b.text_focus) : primaryHsl ?? accentHsl);
+  setVar("text-hover", b?.text_hover ? hexToHsl(b.text_hover) : fgHsl);
+  setVar(
+    "text-hyperlink",
+    b?.text_hyperlink ? hexToHsl(b.text_hyperlink) : primaryHsl ?? accentHsl,
+  );
 
   // Derived surfaces when we have both bg and fg
   if (bgHsl && fgHsl) {
