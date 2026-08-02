@@ -10,6 +10,7 @@ import {
   fillToCss,
   parseFill,
   serializeFill,
+  fillSolidHex,
   toEditableFill,
   GRADIENT_PRESETS,
   type Fill,
@@ -118,6 +119,8 @@ export function ColorPickerCard({
     }
   }, [fillMode, onChange]);
 
+  const previewHex = fillSolidHex(color) ?? defaultColor;
+
   return (
     <div className="rounded-lg border border-border bg-card p-5 space-y-3">
       <div className="flex items-center justify-between gap-2">
@@ -200,7 +203,10 @@ export function ColorPickerCard({
           <RotateCcw className="mr-1 size-3" />
           Reset
         </Button>
-        <EyedropperButton onPick={(hex) => eyedropperPickRef.current(hex)} />
+        <EyedropperButton
+          color={previewHex}
+          onPick={(hex) => eyedropperPickRef.current(hex)}
+        />
       </div>
     </div>
   );
