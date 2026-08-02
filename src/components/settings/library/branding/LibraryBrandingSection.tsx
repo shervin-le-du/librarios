@@ -18,6 +18,10 @@ import {
   COLOR_ACCENT_PRESETS,
   COLOR_BACKGROUND_PRESETS,
   COLOR_FOREGROUND_PRESETS,
+  COLOR_TEXT_FOCUS_PRESETS,
+  COLOR_TEXT_HOVER_PRESETS,
+  COLOR_TEXT_HYPERLINK_PRESETS,
+  TEXT_COLOR_DEFAULTS,
   COLOR_SECONDARY_PRESETS,
   COLOR_CARD_PRESETS,
   COLOR_MUTED_PRESETS,
@@ -420,7 +424,28 @@ const COLOR_DEFAULTS: Record<ColorField, string> = {
   navbar: "#ffffff",
 };
 
-const FOREGROUND_DEFAULT = "#0f172a";
+type TextColorField = "foreground" | "text_focus" | "text_hover" | "text_hyperlink";
+
+const TEXT_COLOR_LABELS: Record<TextColorField, { label: string; description: string }> = {
+  foreground: { label: "Neutral", description: "Default body text on surfaces." },
+  text_focus: { label: "Focus", description: "Text on keyboard-focused links and controls." },
+  text_hover: { label: "Hover", description: "Text when hovering links and interactive labels." },
+  text_hyperlink: { label: "Hyperlink", description: "Default color for links." },
+};
+
+const TEXT_COLOR_PRESETS: Record<TextColorField, typeof COLOR_FOREGROUND_PRESETS> = {
+  foreground: COLOR_FOREGROUND_PRESETS,
+  text_focus: COLOR_TEXT_FOCUS_PRESETS,
+  text_hover: COLOR_TEXT_HOVER_PRESETS,
+  text_hyperlink: COLOR_TEXT_HYPERLINK_PRESETS,
+};
+
+const TEXT_COLOR_DEFAULTS_MAP: Record<TextColorField, string> = {
+  foreground: TEXT_COLOR_DEFAULTS.neutral,
+  text_focus: TEXT_COLOR_DEFAULTS.focus,
+  text_hover: TEXT_COLOR_DEFAULTS.hover,
+  text_hyperlink: TEXT_COLOR_DEFAULTS.hyperlink,
+};
 
 const FEEDBACK_DEFAULTS: Record<FeedbackField, string> = {
   destructive: "#dc2626",
@@ -561,12 +586,22 @@ function TypographyTab({
 }) {
   const [heading, setHeading] = useState(branding.heading_font ?? "");
   const [body, setBody] = useState(branding.body_font ?? "");
-  const [foreground, setForeground] = useState(branding.foreground ?? FOREGROUND_DEFAULT);
+  const [textColors, setTextColors] = useState<Record<TextColorField, string>>(() => ({
+    foreground: branding.foreground ?? TEXT_COLOR_DEFAULTS_MAP.foreground,
+    text_focus: branding.text_focus ?? TEXT_COLOR_DEFAULTS_MAP.text_focus,
+    text_hover: branding.text_hover ?? TEXT_COLOR_DEFAULTS_MAP.text_hover,
+    text_hyperlink: branding.text_hyperlink ?? TEXT_COLOR_DEFAULTS_MAP.text_hyperlink,
+  }));
 
   useEffect(() => {
     setHeading(branding.heading_font ?? "");
     setBody(branding.body_font ?? "");
-    setForeground(branding.foreground ?? FOREGROUND_DEFAULT);
+    setTextColors({
+      foreground: branding.foreground ?? TEXT_COLOR_DEFAULTS_MAP.foreground,
+      text_focus: branding.text_focus ?? TEXT_COLOR_DEFAULTS_MAP.text_focus,
+      text_hover: branding.text_hover ?? TEXT_COLOR_DEFAULTS_MAP.text_hover,
+      text_hyperlink: branding.text_hyperlink ?? TEXT_COLOR_DEFAULTS_MAP.text_hyperlink,
+    });
   }, [branding]);
 
   useEffect(() => {
@@ -574,26 +609,40 @@ function TypographyTab({
       ...branding,
       heading_font: heading || undefined,
       body_font: body || undefined,
-      foreground: foreground || undefined,
+      foreground: textColors.foreground || undefined,
+      text_focus: textColors.text_focus || undefined,
+      text_hover: textColors.text_hover || undefined,
+      text_hyperlink: textColors.text_hyperlink || undefined,
     });
     return () => { applyBrandingToDocument(branding); };
-  }, [heading, body, foreground, branding]);
+  }, [heading, body, textColors, branding]);
 
+  const setTextColor = (field: TextColorField) => (value: string) => {
+    setTextColors((prev) => ({ ...prev, [field]: value }));
+  };
 
   return (
     <Card className="p-6 space-y-6">
       <FontPicker label="Heading font" value={heading} onChange={setHeading} sample="The quick brown fox" isHeading />
       <FontPicker label="Body font" value={body} onChange={setBody} sample="The quick brown fox jumps over the lazy dog." />
-      <div>
-        <Label className="mb-2 block">Text color</Label>
-        <div className="max-w-sm">
-          <ColorPickerCard
-            label="Foreground"
-            color={foreground}
-            presets={COLOR_FOREGROUND_PRESETS}
-            onChange={setForeground}
-            defaultColor={FOREGROUND_DEFAULT}
-          />
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold">Text colors</h3>
+          <p className="text-xs text-muted-foreground">
+            Control default, focus, hover, and link text. Unset values inherit from your brand primary color where appropriate.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {(Object.keys(TEXT_COLOR_LABELS) as TextColorField[]).map((field) => (
+            <ColorPickerCard
+              key={field}
+              label={TEXT_COLOR_LABELS[field].label}
+              color={textColors[field]}
+              presets={TEXT_COLOR_PRESETS[field]}
+              onChange={setTextColor(field)}
+              defaultColor={TEXT_COLOR_DEFAULTS_MAP[field]}
+            />
+          ))}
         </div>
       </div>
       <div className="flex justify-end">
@@ -602,7 +651,10 @@ function TypographyTab({
           onClick={() => onSave({
             heading_font: heading || undefined,
             body_font: body || undefined,
-            foreground: foreground || undefined,
+            foreground: textColors.foreground || undefined,
+            text_focus: textColors.text_focus || undefined,
+            text_hover: textColors.text_hover || undefined,
+            text_hyperlink: textColors.text_hyperlink || undefined,
           })}
         >
           {isSaving ? "Saving…" : "Save typography"}
