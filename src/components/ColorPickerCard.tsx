@@ -155,7 +155,7 @@ export function ColorPickerCard({
                     angle: 135,
                     stops: [
                       { color: base, position: 0 },
-                      { color: "#ffffff", position: 100 },
+                      { color: defaultColor, position: 100 },
                     ],
                   };
                   onChange(serializeFill(grad));
@@ -185,7 +185,7 @@ export function ColorPickerCard({
                   angle: 135,
                   stops: [
                     { color: parsed?.type === "solid" ? parsed.color : defaultColor, position: 0 },
-                    { color: "#ffffff", position: 100 },
+                    { color: defaultColor, position: 100 },
                   ],
                 }
           }

@@ -73,9 +73,9 @@ export function DeletionRequestsCard({ entityType }: { entityType: "book" | "rea
   if (rows.length === 0) return null;
 
   return (
-    <Card className="p-4 mb-4 border-amber-300 bg-amber-50/40">
+    <Card className="p-4 mb-4 border-warning/30 bg-warning/15">
       <div className="flex items-center gap-2 mb-3">
-        <Clock className="size-4 text-amber-700" />
+        <Clock className="size-4 text-warning" />
         <h3 className="font-semibold text-sm">
           {rows.length} pending deletion {rows.length === 1 ? "request" : "requests"}
         </h3>

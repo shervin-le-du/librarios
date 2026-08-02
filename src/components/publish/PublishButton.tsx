@@ -109,7 +109,7 @@ export function PublishButton({ slug, variant = "navbar" }: { slug: string; vari
       ? "fixed bottom-4 right-4 z-50 shadow-lg"
       : "";
 
-  const dotColor = !published ? "bg-muted-foreground" : "bg-emerald-500";
+  const dotColor = !published ? "bg-muted-foreground" : "bg-success";
   const statusText = !published ? "Draft" : "Published";
 
   return (
@@ -201,7 +201,7 @@ export function PublishButton({ slug, variant = "navbar" }: { slug: string; vari
                   <AlertTriangle className="size-3.5" />
                   Review issues
                   {issues.length > 0 && (
-                    <span className="ml-1 inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold">
+                    <span className="ml-1 inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-warning text-warning-foreground text-[10px] font-semibold">
                       {issues.length}
                     </span>
                   )}
@@ -214,7 +214,7 @@ export function PublishButton({ slug, variant = "navbar" }: { slug: string; vari
                   <ul className="space-y-1.5">
                     {issues.map((i) => (
                       <li key={i} className="flex items-start gap-2">
-                        <AlertTriangle className="size-3.5 mt-0.5 text-amber-500 shrink-0" />
+                        <AlertTriangle className="size-3.5 mt-0.5 text-warning shrink-0" />
                         <span>{i}</span>
                       </li>
                     ))}

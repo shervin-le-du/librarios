@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { BlockList } from "@/components/home/blocks/BlockList";
 import { ensureBlocks, type Block } from "@/components/home/blocks/types";
+import { contrastFg } from "@/lib/branding";
 import { DynamicIcon, type IconName } from "@/lib/dynamic-icon";
 
 type HomeConfig = {
@@ -196,10 +197,10 @@ function HomeContent({
   return (
     <main className="flex-1">
       {canEdit && !published && (
-        <div className="border-b bg-amber-50 text-amber-900">
+        <div className="border-b bg-warning/15 text-warning-foreground">
           <div className="max-w-5xl mx-auto px-6 py-2 text-xs flex items-center gap-2">
             <span className="font-medium">Draft preview</span>
-            <span className="text-amber-800/80">— visitors can't see this page yet. Publish it from the button in the corner.</span>
+            <span className="text-warning-foreground/80">— visitors can't see this page yet. Publish it from the button in the corner.</span>
           </div>
         </div>
       )}
@@ -211,6 +212,7 @@ function HomeContent({
           "relative w-full overflow-hidden rounded-none group",
           cfg.hero_image_url && "min-h-[384px] md:min-h-[484px] -mt-16",
         )}
+        style={cfg.hero_image_url ? { "--hero-foreground": contrastFg("0 0% 25%") } as React.CSSProperties : undefined}
       >
         {(editMode || cfg.hero_image_url) && (
           <HeroBackground
@@ -228,11 +230,11 @@ function HomeContent({
             editing={editMode}
             placeholder={`Welcome to ${lib.name}`}
             dark={!!cfg.hero_image_url}
-            className={cn("text-4xl md:text-6xl font-semibold tracking-tight", cfg.hero_image_url && "text-white")}
-            style={cfg.hero_image_url ? { textShadow: "0 2px 16px rgba(0,0,0,0.6)" } : undefined}
+            className={cn("text-4xl md:text-6xl font-semibold tracking-tight", cfg.hero_image_url && "text-hero-foreground")}
+            style={cfg.hero_image_url ? { textShadow: "0 2px 16px hsl(var(--hero-foreground) / 0.35)" } : undefined}
           />
           {(editMode || cfg.hero_subheading?.trim()) && (
-            <div className={cn("mt-5 text-lg md:text-xl max-w-2xl", cfg.hero_image_url && "text-white/90")}>
+            <div className={cn("mt-5 text-lg md:text-xl max-w-2xl", cfg.hero_image_url && "text-hero-foreground/90")}>
               <InlineMultiline
                 value={cfg.hero_subheading ?? ""}
                 onCommit={(v) => onSave({ hero_subheading: v })}
@@ -240,7 +242,7 @@ function HomeContent({
                 placeholder="Add a subheading to introduce your library…"
                 rows={2}
                 dark={!!cfg.hero_image_url}
-                style={cfg.hero_image_url ? { textShadow: "0 1px 10px rgba(0,0,0,0.6)" } : undefined}
+                style={cfg.hero_image_url ? { textShadow: "0 1px 10px hsl(var(--hero-foreground) / 0.35)" } : undefined}
               />
             </div>
           )}
@@ -286,8 +288,8 @@ function EditorOverlay({
       {editMode && label && (
         <div className="rounded-full bg-background/90 backdrop-blur border shadow-sm px-3 py-1.5 text-xs flex items-center gap-1.5">
           {saveState === "saving" && <Loader2 className="size-3 animate-spin" />}
-          {saveState === "saved" && <Check className="size-3 text-emerald-600" />}
-          {saveState === "error" && <X className="size-3 text-red-600" />}
+          {saveState === "saved" && <Check className="size-3 text-success" />}
+          {saveState === "error" && <X className="size-3 text-destructive" />}
           {label}
         </div>
       )}

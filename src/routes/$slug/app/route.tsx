@@ -449,7 +449,7 @@ function SupportBanner() {
     router.navigate({ to: "/platform", replace: true });
   }
   return (
-    <div className="bg-amber-100 border-b border-amber-300 text-amber-900 px-4 py-2 text-sm flex items-center justify-between gap-3">
+    <div className="bg-warning/15 border-b border-warning/30 text-warning-foreground px-4 py-2 text-sm flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
         <LifeBuoy className="size-4" />
         <span>Support session active — you're acting as a platform admin.</span>

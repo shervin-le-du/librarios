@@ -177,7 +177,7 @@ export function SettingsSectionContent({
   return (
     <div className="min-w-0">
       {inSupport && isLibrarySection && support.data && (
-        <div className="mb-6 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="mb-6 flex items-center justify-between gap-3 rounded-md border border-warning/30 bg-warning/15 px-4 py-3 text-sm text-warning-foreground">
           <div className="flex items-center gap-2 min-w-0">
             <LifeBuoy className="size-4 shrink-0" />
             <span className="truncate">

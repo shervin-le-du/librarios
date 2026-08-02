@@ -77,9 +77,9 @@ function PlatformLayout() {
 
       {session.data && (
         <div className="max-w-6xl mx-auto px-6 pt-6">
-          <Card className="p-4 bg-amber-50 border-amber-300 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm">
-              <LifeBuoy className="size-4 text-amber-700" />
+          <Card className="p-4 bg-warning/15 border-warning/30 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-warning-foreground">
+              <LifeBuoy className="size-4" />
               <span>Active support session in <strong>{session.data.library_name}</strong> since {new Date(session.data.started_at).toLocaleString()}</span>
             </div>
             <div className="flex gap-2">
