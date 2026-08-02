@@ -438,7 +438,7 @@ export function applyBrandingToDocument(branding: LibraryBranding | null | undef
 
   const setVar = (name: string, hsl: string | null | undefined, alpha?: number) => {
     if (!hsl) { root.style.removeProperty(`--${name}`); return; }
-    root.style.setProperty(`--${name}`, alpha == null ? `hsl(${hsl})` : `hsl(${hsl} / ${alpha})`);
+    root.style.setProperty(`--${name}`, alpha == null ? hsl : `${hsl} / ${alpha}`);
   };
   const setImage = (name: string, css: string | null) => {
     if (!css) root.style.removeProperty(`--${name}-image`);
