@@ -42,6 +42,7 @@
   --color-sidebar-ring: hsl(var(--sidebar-ring));
   --color-navbar: hsl(var(--navbar, var(--background)));
   --color-navbar-foreground: hsl(var(--navbar-foreground, var(--foreground)));
+  --color-hero-foreground: hsl(var(--hero-foreground, var(--foreground)));
   --color-cta-bg: hsl(var(--cta-bg));
   --color-cta-foreground: hsl(var(--cta-foreground));
   --color-cta-accent: hsl(var(--cta-accent));
@@ -125,10 +126,10 @@
     background-color: var(--color-background);
     background-image: var(--background-image, none);
     color: var(--color-foreground);
-    font-family: var(--font-sans);
+    font-family: var(--font-body, var(--font-sans));
     -webkit-font-smoothing: antialiased;
   }
-  h1, h2, h3, h4, h5 { font-family: var(--font-display); letter-spacing: -0.02em; }
+  h1, h2, h3, h4, h5 { font-family: var(--font-heading, var(--font-display)); letter-spacing: -0.02em; }
   a:not([class]) {
     color: var(--color-text-hyperlink);
     text-decoration: underline;

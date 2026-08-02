@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Upload, X, Image as ImageIcon, Palette, Type as TypeIcon, Square } from "lucide-react";
+import { Upload, X, Image as ImageIcon, Palette, Type as TypeIcon, Square, ChevronDown } from "lucide-react";
 import { useCurrentLibrary, useSignedLogo } from "@/lib/use-current-library";
 import {
   FONT_PRESETS,
@@ -18,12 +18,12 @@ import {
   COLOR_ACCENT_PRESETS,
   COLOR_BACKGROUND_PRESETS,
   COLOR_FOREGROUND_PRESETS,
-  COLOR_SECONDARY_PRESETS,
   COLOR_CARD_PRESETS,
   COLOR_MUTED_PRESETS,
   COLOR_BORDER_PRESETS,
   COLOR_SIDEBAR_PRESETS,
   COLOR_NAVBAR_PRESETS,
+  COLOR_DESTRUCTIVE_PRESETS,
   COLOR_SUCCESS_PRESETS,
   COLOR_WARNING_PRESETS,
   COLOR_BUTTON_BG_PRESETS,
@@ -38,6 +38,7 @@ import {
 } from "@/lib/branding";
 import { ColorPickerCard } from "@/components/ColorPickerCard";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { IconPickerPanel } from "./IconPicker";
 import { DynamicIcon, type IconName } from "@/lib/dynamic-icon";
 
@@ -168,7 +169,6 @@ function LogosTab({
 }) {
   const qc = useQueryClient();
   const legacyLogo = useSignedLogo(legacyLogoPath);
-  const logoDark = useSignedBrandingAsset(branding.logo_dark_url ?? null);
   const favicon = useSignedBrandingAsset(branding.favicon_url ?? null);
   const social = useSignedBrandingAsset(branding.social_image_url ?? null);
 
@@ -201,7 +201,7 @@ function LogosTab({
     toast.success("Logo removed");
   }
 
-  async function uploadBrandingAsset(kind: "logo_dark_url" | "favicon_url" | "social_image_url", file: File) {
+  async function uploadBrandingAsset(kind: "favicon_url" | "social_image_url", file: File) {
     const ext = file.name.split(".").pop() ?? "png";
     const path = `${libraryId}/${kind}-${Date.now()}.${ext}`;
     const { error: upErr } = await supabase.storage
@@ -216,7 +216,7 @@ function LogosTab({
     qc.invalidateQueries({ queryKey: ["branding-asset-signed"] });
   }
 
-  async function clearBrandingAsset(kind: "logo_dark_url" | "favicon_url" | "social_image_url") {
+  async function clearBrandingAsset(kind: "favicon_url" | "social_image_url") {
     const prev = branding[kind];
     if (prev && !/^https?:\/\//i.test(prev)) {
       await supabase.storage.from("library-branding").remove([prev]);
@@ -241,21 +241,6 @@ function LogosTab({
           ...(patch.icon_name !== undefined ? { logo_icon_name: patch.icon_name } : {}),
           ...(patch.icon_color !== undefined ? { logo_icon_color: patch.icon_color } : {}),
         })}
-      />
-      <LogoRow
-        title="Dark logo"
-        description="Optional light-on-dark variant for dark backgrounds."
-        previewUrl={logoDark.data ?? null}
-        onUpload={(f) => uploadBrandingAsset("logo_dark_url", f)}
-        onRemove={branding.logo_dark_url ? () => clearBrandingAsset("logo_dark_url") : undefined}
-        iconName={branding.logo_dark_icon_name ?? null}
-        iconColor={branding.logo_dark_icon_color ?? null}
-        defaultIconColor="#ffffff"
-        onIconChange={(patch) => onSave({
-          ...(patch.icon_name !== undefined ? { logo_dark_icon_name: patch.icon_name } : {}),
-          ...(patch.icon_color !== undefined ? { logo_dark_icon_color: patch.icon_color } : {}),
-        })}
-        iconBgClass="bg-slate-900"
       />
       <LogoRow
         title="Favicon"
@@ -401,18 +386,18 @@ function LogoRow({
 
 /* ---------------- Colors ---------------- */
 
-type ColorField =
-  | "primary" | "accent" | "secondary"
-  | "background" | "card" | "muted" | "border"
-  | "sidebar" | "navbar";
+type BrandField = "primary" | "accent";
+
+type AdvancedColorField = "card" | "muted" | "border" | "sidebar" | "navbar";
 
 type FeedbackField = "destructive" | "success" | "warning";
 
-const COLOR_DEFAULTS: Record<ColorField, string> = {
+const BRAND_DEFAULTS: Record<BrandField, string> = {
   primary: "#0a2540",
   accent: "#f59e0b",
-  secondary: "#e2e8f0",
-  background: "#ffffff",
+};
+
+const ADVANCED_DEFAULTS: Record<AdvancedColorField, string> = {
   card: "#ffffff",
   muted: "#f1efe9",
   border: "#e5e7eb",
@@ -420,6 +405,7 @@ const COLOR_DEFAULTS: Record<ColorField, string> = {
   navbar: "#ffffff",
 };
 
+const BACKGROUND_DEFAULT = "#ffffff";
 const FOREGROUND_DEFAULT = "#0f172a";
 
 const FEEDBACK_DEFAULTS: Record<FeedbackField, string> = {
@@ -436,44 +422,72 @@ function ColorsTab({
   onSave: (patch: Partial<LibraryBranding>) => void;
   isSaving: boolean;
 }) {
-  const defaults = useMemo<Record<ColorField, string>>(
-    () => ({ ...COLOR_DEFAULTS, primary: fallbackPrimary || COLOR_DEFAULTS.primary }),
+  const brandDefaults = useMemo<Record<BrandField, string>>(
+    () => ({ ...BRAND_DEFAULTS, primary: fallbackPrimary || BRAND_DEFAULTS.primary }),
     [fallbackPrimary],
   );
 
-  const [values, setValues] = useState<Record<ColorField, string>>(() => ({
-    primary: branding.primary ?? defaults.primary,
-    accent: branding.accent ?? defaults.accent,
-    secondary: branding.secondary ?? defaults.secondary,
-    background: branding.background ?? defaults.background,
-    card: branding.card ?? defaults.card,
-    muted: branding.muted ?? defaults.muted,
-    border: branding.border ?? defaults.border,
-    sidebar: branding.sidebar ?? defaults.sidebar,
-    navbar: branding.navbar ?? defaults.navbar,
+  const [brand, setBrand] = useState<Record<BrandField, string>>(() => ({
+    primary: branding.primary ?? brandDefaults.primary,
+    accent: branding.accent ?? brandDefaults.accent,
   }));
+  const [background, setBackground] = useState(branding.background ?? BACKGROUND_DEFAULT);
+  const [feedback, setFeedback] = useState<Record<FeedbackField, string>>(() => ({
+    destructive: branding.destructive ?? FEEDBACK_DEFAULTS.destructive,
+    success: branding.success ?? FEEDBACK_DEFAULTS.success,
+    warning: branding.warning ?? FEEDBACK_DEFAULTS.warning,
+  }));
+  const [advanced, setAdvanced] = useState({
+    card: branding.card ?? ADVANCED_DEFAULTS.card,
+    muted: branding.muted ?? ADVANCED_DEFAULTS.muted,
+    border: branding.border ?? ADVANCED_DEFAULTS.border,
+    sidebar: branding.sidebar ?? ADVANCED_DEFAULTS.sidebar,
+    navbar: branding.navbar ?? ADVANCED_DEFAULTS.navbar,
+    foreground: branding.foreground ?? FOREGROUND_DEFAULT,
+  });
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   useEffect(() => {
-    setValues({
-      primary: branding.primary ?? defaults.primary,
-      accent: branding.accent ?? defaults.accent,
-      secondary: branding.secondary ?? defaults.secondary,
-      background: branding.background ?? defaults.background,
-      card: branding.card ?? defaults.card,
-      muted: branding.muted ?? defaults.muted,
-      border: branding.border ?? defaults.border,
-      sidebar: branding.sidebar ?? defaults.sidebar,
-      navbar: branding.navbar ?? defaults.navbar,
+    setBrand({
+      primary: branding.primary ?? brandDefaults.primary,
+      accent: branding.accent ?? brandDefaults.accent,
     });
-  }, [branding, defaults]);
+    setBackground(branding.background ?? BACKGROUND_DEFAULT);
+    setFeedback({
+      destructive: branding.destructive ?? FEEDBACK_DEFAULTS.destructive,
+      success: branding.success ?? FEEDBACK_DEFAULTS.success,
+      warning: branding.warning ?? FEEDBACK_DEFAULTS.warning,
+    });
+    setAdvanced({
+      card: branding.card ?? ADVANCED_DEFAULTS.card,
+      muted: branding.muted ?? ADVANCED_DEFAULTS.muted,
+      border: branding.border ?? ADVANCED_DEFAULTS.border,
+      sidebar: branding.sidebar ?? ADVANCED_DEFAULTS.sidebar,
+      navbar: branding.navbar ?? ADVANCED_DEFAULTS.navbar,
+      foreground: branding.foreground ?? FOREGROUND_DEFAULT,
+    });
+  }, [branding, brandDefaults]);
 
-  const set = (k: ColorField) => (v: string) => setValues((prev) => ({ ...prev, [k]: v }));
+  const setBrandField = (k: BrandField) => (v: string) => setBrand((prev) => ({ ...prev, [k]: v }));
+  const setAdvancedField = (k: keyof typeof advanced) => (v: string) =>
+    setAdvanced((prev) => ({ ...prev, [k]: v }));
+  const setFb = (k: FeedbackField) => (v: string) => setFeedback((prev) => ({ ...prev, [k]: v }));
 
-  // Live preview
   useEffect(() => {
-    applyBrandingToDocument({ ...branding, ...values });
+    applyBrandingToDocument({
+      ...branding,
+      ...brand,
+      background,
+      ...feedback,
+      card: advanced.card,
+      muted: advanced.muted,
+      border: advanced.border,
+      sidebar: advanced.sidebar,
+      navbar: advanced.navbar,
+      foreground: advanced.foreground,
+    });
     return () => { applyBrandingToDocument(branding); };
-  }, [values, branding]);
+  }, [brand, background, feedback, advanced, branding]);
 
   const Section = ({ title, description, children }: {
     title: string; description: string; children: React.ReactNode;
@@ -489,56 +503,72 @@ function ColorsTab({
 
   return (
     <div className="space-y-8">
-      <Section title="Brand" description="Core colors for links, highlights, focus rings, and chips. Button colors are set in the Buttons tab.">
-        <ColorPickerCard label="Primary" color={values.primary} presets={COLOR_PRIMARY_PRESETS}
-          onChange={set("primary")} defaultColor={defaults.primary} allowGradient />
-        <ColorPickerCard label="Accent" color={values.accent} presets={COLOR_ACCENT_PRESETS}
-          onChange={set("accent")} defaultColor={defaults.accent} allowGradient />
-        <ColorPickerCard label="Secondary" color={values.secondary} presets={COLOR_SECONDARY_PRESETS}
-          onChange={set("secondary")} defaultColor={defaults.secondary} />
+      <Section title="Brand" description="Primary brand color and secondary accent for highlights, CTAs, focus rings, and chips.">
+        <ColorPickerCard label="Primary" color={brand.primary} presets={COLOR_PRIMARY_PRESETS}
+          onChange={setBrandField("primary")} defaultColor={brandDefaults.primary} allowGradient />
+        {/* UI label "Secondary" maps to stored key accent — intentional; drives highlights/CTA/ring */}
+        <ColorPickerCard label="Secondary" color={brand.accent} presets={COLOR_ACCENT_PRESETS}
+          onChange={setBrandField("accent")} defaultColor={brandDefaults.accent} allowGradient />
       </Section>
 
-      <Section title="Surface" description="Panels and dividers. Card, muted, and border auto-derive from background if left as defaults.">
-        <ColorPickerCard label="Card / Surface" color={values.card} presets={COLOR_CARD_PRESETS}
-          onChange={set("card")} defaultColor={defaults.card} allowGradient />
-        <ColorPickerCard label="Muted" color={values.muted} presets={COLOR_MUTED_PRESETS}
-          onChange={set("muted")} defaultColor={defaults.muted} />
-        <ColorPickerCard label="Border" color={values.border} presets={COLOR_BORDER_PRESETS}
-          onChange={set("border")} defaultColor={defaults.border} />
+      <Section title="Background" description="Page background. Card, muted, border, and chrome derive from this when unset.">
+        <ColorPickerCard label="Page background" color={background} presets={COLOR_BACKGROUND_PRESETS}
+          onChange={setBackground} defaultColor={BACKGROUND_DEFAULT} allowGradient />
       </Section>
 
-      <Section title="Chrome" description="Page background, sidebar, and top navigation bar. Sidebar and navbar follow the background if left as defaults.">
-        <ColorPickerCard label="Page background" color={values.background} presets={COLOR_BACKGROUND_PRESETS}
-          onChange={set("background")} defaultColor={defaults.background} allowGradient />
-        <ColorPickerCard label="Sidebar" color={values.sidebar} presets={COLOR_SIDEBAR_PRESETS}
-          onChange={set("sidebar")} defaultColor={defaults.sidebar} allowGradient />
-        <ColorPickerCard label="Top navbar" color={values.navbar} presets={COLOR_NAVBAR_PRESETS}
-          onChange={set("navbar")} defaultColor={defaults.navbar} allowGradient />
+      <Section title="Feedback" description="Status colors for alerts, badges, and banners. Optional overrides.">
+        <ColorPickerCard label="Destructive" color={feedback.destructive} presets={COLOR_DESTRUCTIVE_PRESETS}
+          onChange={setFb("destructive")} defaultColor={FEEDBACK_DEFAULTS.destructive} />
+        <ColorPickerCard label="Warning" color={feedback.warning} presets={COLOR_WARNING_PRESETS}
+          onChange={setFb("warning")} defaultColor={FEEDBACK_DEFAULTS.warning} />
+        <ColorPickerCard label="Success" color={feedback.success} presets={COLOR_SUCCESS_PRESETS}
+          onChange={setFb("success")} defaultColor={FEEDBACK_DEFAULTS.success} />
       </Section>
 
-
-
-
-
+      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md border px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors">
+          <span>Advanced</span>
+          <ChevronDown className={cn("size-4 transition-transform", advancedOpen && "rotate-180")} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-4 space-y-6">
+          <Section title="Surfaces" description="Override derived card, muted, and border colors.">
+            <ColorPickerCard label="Card / Surface" color={advanced.card} presets={COLOR_CARD_PRESETS}
+              onChange={setAdvancedField("card")} defaultColor={ADVANCED_DEFAULTS.card} allowGradient />
+            <ColorPickerCard label="Muted" color={advanced.muted} presets={COLOR_MUTED_PRESETS}
+              onChange={setAdvancedField("muted")} defaultColor={ADVANCED_DEFAULTS.muted} />
+            <ColorPickerCard label="Border" color={advanced.border} presets={COLOR_BORDER_PRESETS}
+              onChange={setAdvancedField("border")} defaultColor={ADVANCED_DEFAULTS.border} />
+          </Section>
+          <Section title="Chrome" description="Sidebar and navbar follow background when unset.">
+            <ColorPickerCard label="Sidebar" color={advanced.sidebar} presets={COLOR_SIDEBAR_PRESETS}
+              onChange={setAdvancedField("sidebar")} defaultColor={ADVANCED_DEFAULTS.sidebar} allowGradient />
+            <ColorPickerCard label="Top navbar" color={advanced.navbar} presets={COLOR_NAVBAR_PRESETS}
+              onChange={setAdvancedField("navbar")} defaultColor={ADVANCED_DEFAULTS.navbar} allowGradient />
+          </Section>
+          <Section title="Text" description="Body text derives from background contrast when unset.">
+            <ColorPickerCard label="Foreground (neutral)" color={advanced.foreground} presets={COLOR_FOREGROUND_PRESETS}
+              onChange={setAdvancedField("foreground")} defaultColor={FOREGROUND_DEFAULT} />
+          </Section>
+        </CollapsibleContent>
+      </Collapsible>
 
       <div className="flex justify-end sticky bottom-0 bg-background/80 backdrop-blur py-2">
         <Button
           disabled={isSaving}
           onClick={() =>
             onSave({
-              primary: values.primary || undefined,
-              accent: values.accent || undefined,
-              secondary: values.secondary || undefined,
-              background: values.background || undefined,
-              
-              card: values.card || undefined,
-              muted: values.muted || undefined,
-              border: values.border || undefined,
-              sidebar: values.sidebar || undefined,
-              navbar: values.navbar || undefined,
-
-
-
+              primary: brand.primary || undefined,
+              accent: brand.accent || undefined,
+              background: background || undefined,
+              destructive: feedback.destructive || undefined,
+              success: feedback.success || undefined,
+              warning: feedback.warning || undefined,
+              card: advanced.card || undefined,
+              muted: advanced.muted || undefined,
+              border: advanced.border || undefined,
+              sidebar: advanced.sidebar || undefined,
+              navbar: advanced.navbar || undefined,
+              foreground: advanced.foreground || undefined,
             })
           }
         >
@@ -561,12 +591,10 @@ function TypographyTab({
 }) {
   const [heading, setHeading] = useState(branding.heading_font ?? "");
   const [body, setBody] = useState(branding.body_font ?? "");
-  const [foreground, setForeground] = useState(branding.foreground ?? FOREGROUND_DEFAULT);
 
   useEffect(() => {
     setHeading(branding.heading_font ?? "");
     setBody(branding.body_font ?? "");
-    setForeground(branding.foreground ?? FOREGROUND_DEFAULT);
   }, [branding]);
 
   useEffect(() => {
@@ -574,35 +602,20 @@ function TypographyTab({
       ...branding,
       heading_font: heading || undefined,
       body_font: body || undefined,
-      foreground: foreground || undefined,
     });
     return () => { applyBrandingToDocument(branding); };
-  }, [heading, body, foreground, branding]);
-
+  }, [heading, body, branding]);
 
   return (
     <Card className="p-6 space-y-6">
       <FontPicker label="Heading font" value={heading} onChange={setHeading} sample="The quick brown fox" isHeading />
       <FontPicker label="Body font" value={body} onChange={setBody} sample="The quick brown fox jumps over the lazy dog." />
-      <div>
-        <Label className="mb-2 block">Text color</Label>
-        <div className="max-w-sm">
-          <ColorPickerCard
-            label="Foreground"
-            color={foreground}
-            presets={COLOR_FOREGROUND_PRESETS}
-            onChange={setForeground}
-            defaultColor={FOREGROUND_DEFAULT}
-          />
-        </div>
-      </div>
       <div className="flex justify-end">
         <Button
           disabled={isSaving}
           onClick={() => onSave({
             heading_font: heading || undefined,
             body_font: body || undefined,
-            foreground: foreground || undefined,
           })}
         >
           {isSaving ? "Saving…" : "Save typography"}
@@ -648,8 +661,6 @@ function FontPicker({ label, value, onChange, sample, isHeading = false }: {
 }
 
 /* ---------------- Buttons ---------------- */
-
-type ButtonKind = "primary" | "secondary" | "destructive";
 
 const BUTTON_COLOR_DEFAULTS = {
   primary: { bg: "#0a2540", fg: "#ffffff" },
@@ -794,19 +805,13 @@ function CompactColorField({
 
 
 function ButtonKindCard({
-  title, shape, bg, fg,
-  onShape, onBg, onFg,
-  defaults, presets,
+  title, shape, bg, fg, onShape,
 }: {
   title: string;
   shape: ButtonShape;
   bg: string;
   fg: string;
   onShape: (s: ButtonShape) => void;
-  onBg: (v: string) => void;
-  onFg: (v: string) => void;
-  defaults: { bg: string; fg: string };
-  presets: { bg: typeof COLOR_BUTTON_BG_PRESETS; fg: typeof COLOR_BUTTON_FG_PRESETS };
 }) {
   return (
     <Card className="p-6 space-y-5">
@@ -818,11 +823,6 @@ function ButtonKindCard({
         <Label className="text-xs text-muted-foreground">Shape</Label>
         <ShapePicker value={shape} onChange={onShape} bg={bg} fg={fg} />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <CompactColorField label="Background" color={bg} onChange={onBg} defaultColor={defaults.bg} presets={presets.bg} allowGradient />
-        <CompactColorField label="Text" color={fg} onChange={onFg} defaultColor={defaults.fg} presets={presets.fg} />
-      </div>
-
     </Card>
   );
 }
@@ -840,35 +840,34 @@ function ButtonsTab({
   const [secondaryShape, setSecondaryShape] = useState<ButtonShape>(branding.button_secondary_style ?? legacyShape);
   const [destructiveShape, setDestructiveShape] = useState<ButtonShape>(branding.button_destructive_style ?? legacyShape);
 
-  const [primaryBg, setPrimaryBg] = useState(branding.button_bg ?? BUTTON_COLOR_DEFAULTS.primary.bg);
+  const [primaryBg, setPrimaryBg] = useState(branding.button_bg ?? branding.primary ?? BUTTON_COLOR_DEFAULTS.primary.bg);
   const [primaryFg, setPrimaryFg] = useState(branding.button_fg ?? BUTTON_COLOR_DEFAULTS.primary.fg);
   const [secondaryBg, setSecondaryBg] = useState(branding.button_secondary_bg ?? BUTTON_COLOR_DEFAULTS.secondary.bg);
   const [secondaryFg, setSecondaryFg] = useState(branding.button_secondary_fg ?? BUTTON_COLOR_DEFAULTS.secondary.fg);
-  const [destructiveBg, setDestructiveBg] = useState(branding.button_destructive_bg ?? BUTTON_COLOR_DEFAULTS.destructive.bg);
+  const [destructiveBg, setDestructiveBg] = useState(
+    branding.button_destructive_bg ?? branding.destructive ?? BUTTON_COLOR_DEFAULTS.destructive.bg,
+  );
   const [destructiveFg, setDestructiveFg] = useState(branding.button_destructive_fg ?? BUTTON_COLOR_DEFAULTS.destructive.fg);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  const [feedback, setFeedback] = useState<Record<FeedbackField, string>>(() => ({
-    destructive: branding.destructive ?? FEEDBACK_DEFAULTS.destructive,
-    success: branding.success ?? FEEDBACK_DEFAULTS.success,
-    warning: branding.warning ?? FEEDBACK_DEFAULTS.warning,
-  }));
+  const previewPrimary = branding.button_bg ?? branding.primary ?? BUTTON_COLOR_DEFAULTS.primary.bg;
+  const previewSecondary = branding.button_secondary_bg ?? BUTTON_COLOR_DEFAULTS.secondary.bg;
+  const previewDestructive = branding.button_destructive_bg ?? branding.destructive ?? BUTTON_COLOR_DEFAULTS.destructive.bg;
+  const previewPrimaryFg = branding.button_fg ?? BUTTON_COLOR_DEFAULTS.primary.fg;
+  const previewSecondaryFg = branding.button_secondary_fg ?? BUTTON_COLOR_DEFAULTS.secondary.fg;
+  const previewDestructiveFg = branding.button_destructive_fg ?? BUTTON_COLOR_DEFAULTS.destructive.fg;
 
   useEffect(() => {
     const l = migrateLegacyButtonShape(branding.button_radius, branding.button_style);
     setPrimaryShape(branding.button_primary_style ?? l);
     setSecondaryShape(branding.button_secondary_style ?? l);
     setDestructiveShape(branding.button_destructive_style ?? l);
-    setPrimaryBg(branding.button_bg ?? BUTTON_COLOR_DEFAULTS.primary.bg);
+    setPrimaryBg(branding.button_bg ?? branding.primary ?? BUTTON_COLOR_DEFAULTS.primary.bg);
     setPrimaryFg(branding.button_fg ?? BUTTON_COLOR_DEFAULTS.primary.fg);
     setSecondaryBg(branding.button_secondary_bg ?? BUTTON_COLOR_DEFAULTS.secondary.bg);
     setSecondaryFg(branding.button_secondary_fg ?? BUTTON_COLOR_DEFAULTS.secondary.fg);
-    setDestructiveBg(branding.button_destructive_bg ?? BUTTON_COLOR_DEFAULTS.destructive.bg);
+    setDestructiveBg(branding.button_destructive_bg ?? branding.destructive ?? BUTTON_COLOR_DEFAULTS.destructive.bg);
     setDestructiveFg(branding.button_destructive_fg ?? BUTTON_COLOR_DEFAULTS.destructive.fg);
-    setFeedback({
-      destructive: branding.destructive ?? FEEDBACK_DEFAULTS.destructive,
-      success: branding.success ?? FEEDBACK_DEFAULTS.success,
-      warning: branding.warning ?? FEEDBACK_DEFAULTS.warning,
-    });
   }, [branding]);
 
   useEffect(() => {
@@ -883,78 +882,82 @@ function ButtonsTab({
       button_secondary_fg: secondaryFg,
       button_destructive_bg: destructiveBg,
       button_destructive_fg: destructiveFg,
-      ...feedback,
     });
     return () => { applyBrandingToDocument(branding); };
   }, [
     branding, primaryShape, secondaryShape, destructiveShape,
     primaryBg, primaryFg, secondaryBg, secondaryFg, destructiveBg, destructiveFg,
-    feedback,
   ]);
-
-  const setFb = (k: FeedbackField) => (v: string) => setFeedback((prev) => ({ ...prev, [k]: v }));
 
   return (
     <div className="space-y-6">
       <div className="space-y-4">
         <ButtonKindCard
-          title="Primary" shape={primaryShape} bg={primaryBg} fg={primaryFg}
-          onShape={setPrimaryShape} onBg={setPrimaryBg} onFg={setPrimaryFg}
-          defaults={BUTTON_COLOR_DEFAULTS.primary}
-          presets={{ bg: COLOR_BUTTON_BG_PRESETS, fg: COLOR_BUTTON_FG_PRESETS }}
+          title="Primary" shape={primaryShape} bg={previewPrimary} fg={previewPrimaryFg}
+          onShape={setPrimaryShape}
         />
         <ButtonKindCard
-          title="Secondary" shape={secondaryShape} bg={secondaryBg} fg={secondaryFg}
-          onShape={setSecondaryShape} onBg={setSecondaryBg} onFg={setSecondaryFg}
-          defaults={BUTTON_COLOR_DEFAULTS.secondary}
-          presets={{ bg: COLOR_BUTTON_SECONDARY_BG_PRESETS, fg: COLOR_BUTTON_SECONDARY_FG_PRESETS }}
+          title="Secondary" shape={secondaryShape} bg={previewSecondary} fg={previewSecondaryFg}
+          onShape={setSecondaryShape}
         />
         <ButtonKindCard
-          title="Destructive" shape={destructiveShape} bg={destructiveBg} fg={destructiveFg}
-          onShape={setDestructiveShape} onBg={setDestructiveBg} onFg={setDestructiveFg}
-          defaults={BUTTON_COLOR_DEFAULTS.destructive}
-          presets={{ bg: COLOR_BUTTON_DESTRUCTIVE_BG_PRESETS, fg: COLOR_BUTTON_DESTRUCTIVE_FG_PRESETS }}
+          title="Destructive" shape={destructiveShape} bg={previewDestructive} fg={previewDestructiveFg}
+          onShape={setDestructiveShape}
         />
       </div>
 
-      <Card className="p-5 space-y-3">
-        <div>
-          <h3 className="text-sm font-semibold">Feedback</h3>
-          <p className="text-xs text-muted-foreground">Status colors for success and warning messages.</p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <ColorPickerCard label="Success" color={feedback.success} presets={COLOR_SUCCESS_PRESETS}
-            onChange={setFb("success")} defaultColor={FEEDBACK_DEFAULTS.success} />
-          <ColorPickerCard label="Warning" color={feedback.warning} presets={COLOR_WARNING_PRESETS}
-            onChange={setFb("warning")} defaultColor={FEEDBACK_DEFAULTS.warning} />
-        </div>
-      </Card>
+      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md border px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors">
+          <span>Advanced — button color overrides</span>
+          <ChevronDown className={cn("size-4 transition-transform", advancedOpen && "rotate-180")} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-4 space-y-4">
+          <Card className="p-6 space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Override derived button colors. Leave at defaults to inherit from brand and feedback tokens.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <CompactColorField label="Primary background" color={primaryBg} onChange={setPrimaryBg}
+                defaultColor={BUTTON_COLOR_DEFAULTS.primary.bg} presets={COLOR_BUTTON_BG_PRESETS} allowGradient />
+              <CompactColorField label="Primary text" color={primaryFg} onChange={setPrimaryFg}
+                defaultColor={BUTTON_COLOR_DEFAULTS.primary.fg} presets={COLOR_BUTTON_FG_PRESETS} />
+              <CompactColorField label="Secondary background" color={secondaryBg} onChange={setSecondaryBg}
+                defaultColor={BUTTON_COLOR_DEFAULTS.secondary.bg} presets={COLOR_BUTTON_SECONDARY_BG_PRESETS} allowGradient />
+              <CompactColorField label="Secondary text" color={secondaryFg} onChange={setSecondaryFg}
+                defaultColor={BUTTON_COLOR_DEFAULTS.secondary.fg} presets={COLOR_BUTTON_SECONDARY_FG_PRESETS} />
+              <CompactColorField label="Destructive background" color={destructiveBg} onChange={setDestructiveBg}
+                defaultColor={BUTTON_COLOR_DEFAULTS.destructive.bg} presets={COLOR_BUTTON_DESTRUCTIVE_BG_PRESETS} allowGradient />
+              <CompactColorField label="Destructive text" color={destructiveFg} onChange={setDestructiveFg}
+                defaultColor={BUTTON_COLOR_DEFAULTS.destructive.fg} presets={COLOR_BUTTON_DESTRUCTIVE_FG_PRESETS} />
+            </div>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
 
       <div className="flex justify-end">
         <Button
           disabled={isSaving}
-          onClick={() => onSave({
-            button_primary_style: primaryShape,
-            button_secondary_style: secondaryShape,
-            button_destructive_style: destructiveShape,
-            button_bg: primaryBg || undefined,
-            button_fg: primaryFg || undefined,
-            button_secondary_bg: secondaryBg || undefined,
-            button_secondary_fg: secondaryFg || undefined,
-            button_destructive_bg: destructiveBg || undefined,
-            button_destructive_fg: destructiveFg || undefined,
-            destructive: destructiveBg || undefined,
-            success: feedback.success || undefined,
-            warning: feedback.warning || undefined,
-            // clear legacy fields
-            button_radius: undefined,
-            button_style: undefined,
-          })}
+          onClick={() => {
+            const derivedPrimaryBg = branding.primary ?? BUTTON_COLOR_DEFAULTS.primary.bg;
+            const derivedDestructiveBg = branding.destructive ?? BUTTON_COLOR_DEFAULTS.destructive.bg;
+            onSave({
+              button_primary_style: primaryShape,
+              button_secondary_style: secondaryShape,
+              button_destructive_style: destructiveShape,
+              button_bg: primaryBg !== derivedPrimaryBg ? primaryBg || undefined : undefined,
+              button_fg: primaryFg !== BUTTON_COLOR_DEFAULTS.primary.fg ? primaryFg || undefined : undefined,
+              button_secondary_bg: secondaryBg !== BUTTON_COLOR_DEFAULTS.secondary.bg ? secondaryBg || undefined : undefined,
+              button_secondary_fg: secondaryFg !== BUTTON_COLOR_DEFAULTS.secondary.fg ? secondaryFg || undefined : undefined,
+              button_destructive_bg: destructiveBg !== derivedDestructiveBg ? destructiveBg || undefined : undefined,
+              button_destructive_fg: destructiveFg !== BUTTON_COLOR_DEFAULTS.destructive.fg ? destructiveFg || undefined : undefined,
+              button_radius: undefined,
+              button_style: undefined,
+            });
+          }}
         >
           {isSaving ? "Saving…" : "Save buttons"}
         </Button>
       </div>
     </div>
   );
-
 }

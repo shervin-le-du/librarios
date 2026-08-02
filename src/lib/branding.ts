@@ -7,14 +7,11 @@ import { fillSolidHex, fillToCss, parseFill } from "./fill";
 export type LibraryBranding = {
   // Logos
   logo_url?: string | null;
-  logo_dark_url?: string | null;
   favicon_url?: string | null;
   social_image_url?: string | null;
   // Per-slot icon fallback (lucide-react). Used when a slot has no uploaded image.
   logo_icon_name?: string | null;
   logo_icon_color?: string | null;
-  logo_dark_icon_name?: string | null;
-  logo_dark_icon_color?: string | null;
   favicon_icon_name?: string | null;
   favicon_icon_color?: string | null;
   social_icon_name?: string | null;
@@ -366,7 +363,7 @@ function lightnessOf(hsl: string): number {
   const m = hsl.match(/([\d.]+)%\s*$/);
   return m ? parseFloat(m[1]) : 50;
 }
-function contrastFg(hsl: string): string {
+export function contrastFg(hsl: string): string {
   // Return an HSL string for readable text on top of the given color.
   return lightnessOf(hsl) > 60 ? "222 47% 11%" : "0 0% 100%";
 }
