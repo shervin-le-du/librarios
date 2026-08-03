@@ -377,9 +377,20 @@ function hslStr(h: number, s: number, l: number): string {
   return `${Math.round(h)} ${Math.round(Math.max(0, Math.min(100, s)))}% ${Math.round(Math.max(0, Math.min(100, l)))}%`;
 }
 
+/** Keep primary hue for on-page labels when primary lightness matches the page background. */
+function primaryOnSurface(primaryHsl: string, bgHsl: string): string {
+  const p = parseHslParts(primaryHsl);
+  const b = parseHslParts(bgHsl);
+  if (!p || !b) return primaryHsl;
+  if (Math.abs(p.l - b.l) >= 22) return primaryHsl;
+  const newL = b.l > 50 ? 32 : 72;
+  return hslStr(p.h, Math.min(100, p.s + 5), newL);
+}
+
 // Tracks which properties we set so cleanup can remove them all.
 const BRAND_VARS = [
   "primary", "primary-foreground",
+  "brand-on-surface",
   "accent", "accent-foreground",
   "secondary", "secondary-foreground",
   "background", "foreground",
@@ -488,6 +499,13 @@ export function applyBrandingToDocument(branding: LibraryBranding | null | undef
   // Background + foreground
   setVar("background", bgHsl);
   setVar("foreground", fgHsl);
+
+  const surfacePrimary = primaryHsl ?? accentHsl;
+  if (surfacePrimary && bgHsl) {
+    setVar("brand-on-surface", primaryOnSurface(surfacePrimary, bgHsl));
+  } else {
+    setVar("brand-on-surface", surfacePrimary);
+  }
 
   // Derived surfaces when we have both bg and fg
   if (bgHsl && fgHsl) {
