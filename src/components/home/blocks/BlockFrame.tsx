@@ -50,6 +50,7 @@ export function BlockFrame({
   const dnd = useDndContext();
   const activeId = dnd.active?.id ? String(dnd.active.id) : null;
   const isSelfDrag = activeId === id;
+  const isDragActive = !!dnd.active;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -70,8 +71,16 @@ export function BlockFrame({
       <div className="absolute inset-0 pointer-events-none rounded-sm transition-all ring-2 ring-transparent group-hover/block:ring-primary/30" />
       {canPair && (
         <>
-          <div ref={setPairLeftRef} className="absolute inset-y-4 left-4 w-1/2 z-10" aria-hidden />
-          <div ref={setPairRightRef} className="absolute inset-y-4 right-4 w-1/2 z-10" aria-hidden />
+          <div
+            ref={setPairLeftRef}
+            className={cn("absolute inset-y-4 left-4 w-1/2 z-10", !isDragActive && "pointer-events-none")}
+            aria-hidden
+          />
+          <div
+            ref={setPairRightRef}
+            className={cn("absolute inset-y-4 right-4 w-1/2 z-10", !isDragActive && "pointer-events-none")}
+            aria-hidden
+          />
           {isPairLeftOver && !isSelfDrag && (
             <div
               className="absolute left-4 top-4 bottom-4 w-1 rounded-full bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.15)] pointer-events-none z-20"
