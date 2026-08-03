@@ -7,7 +7,6 @@ import { InlineText, InlineMultiline } from "@/components/home/InlineEditable";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useSignedHeroImage } from "@/lib/use-current-library";
-import { BlockColorsPopover, resolveBlockColors } from "@/lib/block-colors";
 import { toast } from "sonner";
 import type { Block } from "./types";
 
@@ -20,10 +19,6 @@ type Props = {
 
 export function FeaturedBookBlock({ block, editMode, libraryId, onChange }: Props) {
   const p = block.props;
-  const overrides = resolveBlockColors(p);
-  const hasBg = !!p.bg;
-  const hasFg = !!p.fg;
-  const accentVar = p.accent ? "var(--block-accent)" : undefined;
   const signed = useSignedHeroImage(p.image_path ?? null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -102,30 +97,10 @@ export function FeaturedBookBlock({ block, editMode, libraryId, onChange }: Prop
   const isExternal = /^https?:\/\//i.test(href);
 
   return (
-    <section
-      className={cn("relative border-t", !hasBg && "bg-muted/20")}
-      style={{
-        ...overrides,
-        backgroundColor: hasBg ? "var(--block-bg)" : undefined,
-        backgroundImage: hasBg ? "var(--block-bg-image, none)" : undefined,
-        color: hasFg ? "var(--block-fg)" : undefined,
-      }}
-    >
-      {editMode && (
-        <div className="absolute top-2 right-2 z-10 opacity-0 group-hover/block:opacity-100 focus-within:opacity-100 transition-opacity">
-          <BlockColorsPopover roles={["bg", "fg", "accent"]} values={p} onChange={onChange} />
-        </div>
-      )}
-
+    <section className="relative border-t bg-transparent text-foreground">
       <div className="max-w-5xl mx-auto px-6 py-16">
         {(editMode || p.intro?.trim()) && (
-          <div
-            className={cn(
-              "uppercase tracking-widest text-xs font-medium mb-6",
-              !p.accent && "text-primary",
-            )}
-            style={accentVar ? { color: accentVar } : undefined}
-          >
+          <div className="uppercase tracking-widest text-xs font-medium mb-6 text-primary">
             <InlineText
               value={p.intro ?? ""}
               onCommit={(v) => onChange({ ...p, intro: v })}
@@ -137,10 +112,7 @@ export function FeaturedBookBlock({ block, editMode, libraryId, onChange }: Prop
 
         <div className="grid md:grid-cols-5 gap-10 items-center">
           <div className="md:col-span-2">
-            <div
-              className="relative rounded-lg overflow-hidden bg-muted aspect-[2/3] shadow-lg mx-auto max-w-xs"
-              style={accentVar ? { boxShadow: `0 20px 40px -20px ${accentVar}` } : undefined}
-            >
+            <div className="relative rounded-lg overflow-hidden bg-muted aspect-[2/3] shadow-lg mx-auto max-w-xs">
               {p.image_path ? (
                 signed.data ? (
                   <img src={signed.data} alt={p.title ?? ""} className="w-full h-full object-cover" />
@@ -181,14 +153,14 @@ export function FeaturedBookBlock({ block, editMode, libraryId, onChange }: Prop
 
           <div className="md:col-span-3 space-y-4">
             {editMode && (
-              <div className="flex items-center gap-2 pb-2 border-b">
-                <label className={cn("text-xs shrink-0", !hasFg && "text-muted-foreground")}>
+              <div className="flex items-center gap-2 pb-2 border-b border-border">
+                <label className="text-xs text-muted-foreground shrink-0">
                   Prefill from library:
                 </label>
                 <select
                   value={p.book_id ?? ""}
                   onChange={(e) => onPickBook(e.target.value)}
-                  className="flex-1 bg-transparent border rounded-md px-2 py-1 text-sm"
+                  className="flex-1 bg-transparent border border-input rounded-md px-2 py-1 text-sm text-foreground"
                 >
                   <option value="">— Custom book —</option>
                   {(books.data ?? []).map((b) => (
@@ -208,7 +180,7 @@ export function FeaturedBookBlock({ block, editMode, libraryId, onChange }: Prop
               placeholder="Book title"
               className="text-3xl md:text-4xl font-semibold leading-tight"
             />
-            <div className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm", !hasFg && "text-muted-foreground")}>
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-muted-foreground">
               {(editMode || p.author?.trim()) && (
                 <InlineText
                   value={p.author ?? ""}
@@ -231,7 +203,7 @@ export function FeaturedBookBlock({ block, editMode, libraryId, onChange }: Prop
               )}
             </div>
 
-            <div className={cn("text-base leading-relaxed", !hasFg && "text-foreground/80")}>
+            <div className="text-base leading-relaxed text-foreground/80">
               <InlineMultiline
                 value={p.description ?? ""}
                 onCommit={(v) => onChange({ ...p, description: v })}
@@ -244,44 +216,36 @@ export function FeaturedBookBlock({ block, editMode, libraryId, onChange }: Prop
             {editMode ? (
               <div className="grid sm:grid-cols-2 gap-3 pt-2">
                 <div>
-                  <label className={cn("block text-xs mb-1", !hasFg && "text-muted-foreground")}>Button label</label>
+                  <label className="block text-xs text-muted-foreground mb-1">Button label</label>
                   <InlineText
                     value={p.cta_label ?? ""}
                     onCommit={(v) => onChange({ ...p, cta_label: v })}
                     editing
                     placeholder="See more"
-                    className="block border rounded-md px-3 py-2"
+                    className="block border border-input rounded-md px-3 py-2"
                   />
                 </div>
                 <div>
-                  <label className={cn("block text-xs mb-1", !hasFg && "text-muted-foreground")}>Link (URL or /path)</label>
+                  <label className="block text-xs text-muted-foreground mb-1">Link (URL or /path)</label>
                   <InlineText
                     value={p.cta_href ?? ""}
                     onCommit={(v) => onChange({ ...p, cta_href: v })}
                     editing
                     placeholder="https://… or /path"
-                    className="block border rounded-md px-3 py-2"
+                    className="block border border-input rounded-md px-3 py-2"
                   />
                 </div>
               </div>
             ) : href ? (
               <div className="pt-2">
                 {isExternal ? (
-                  <Button
-                    asChild
-                    className="gap-2"
-                    style={accentVar ? { backgroundColor: accentVar, color: "var(--block-accent-foreground)" } : undefined}
-                  >
+                  <Button asChild className="gap-2">
                     <a href={href} target="_blank" rel="noopener noreferrer">
                       {ctaLabel} <ArrowRight className="size-4" />
                     </a>
                   </Button>
                 ) : (
-                  <Button
-                    asChild
-                    className="gap-2"
-                    style={accentVar ? { backgroundColor: accentVar, color: "var(--block-accent-foreground)" } : undefined}
-                  >
+                  <Button asChild className="gap-2">
                     <Link to={href}>
                       {ctaLabel} <ArrowRight className="size-4" />
                     </Link>

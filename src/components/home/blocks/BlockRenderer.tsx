@@ -10,7 +10,6 @@ import { toast } from "sonner";
 import { CtaBlock } from "./CtaBlock";
 import { FeaturedBookBlock } from "./FeaturedBookBlock";
 import type { Block } from "./types";
-import { BlockColorsPopover, resolveBlockColors, type BlockColorRole } from "@/lib/block-colors";
 
 type Ctx = {
   libraryId: string;
@@ -24,62 +23,21 @@ type Ctx = {
   onChange: (nextProps: any) => void;
 };
 
-function Section({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+function Section({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <section className={cn("border-t", className)} style={style}>
+    <section className={cn("border-t bg-transparent", className)}>
       <div className="max-w-5xl mx-auto px-6 py-14">{children}</div>
     </section>
-  );
-}
-
-/** Renders the palette popover in the top-right of a block when editing. */
-function BlockPaletteOverlay({
-  roles,
-  values,
-  onChange,
-  editMode,
-}: {
-  roles: BlockColorRole[];
-  values: { bg?: string; fg?: string; accent?: string };
-  onChange: (next: any) => void;
-  editMode: boolean;
-}) {
-  if (!editMode) return null;
-  return (
-    <div className="absolute top-2 right-2 z-10 opacity-0 group-hover/block:opacity-100 focus-within:opacity-100 transition-opacity">
-      <BlockColorsPopover roles={roles} values={values} onChange={onChange} />
-    </div>
   );
 }
 
 function AnnouncementBlock({ block, editMode, onChange }: { block: Extract<Block, { type: "announcement" }>; editMode: boolean; onChange: (p: any) => void }) {
   const visible = block.props.visible !== false;
   if (!editMode && (!visible || !block.props.text?.trim())) return null;
-  const overrides = resolveBlockColors(block.props);
-  const hasBg = !!block.props.bg;
-  const hasFg = !!block.props.fg;
-  const hasAccent = !!block.props.accent;
   return (
-    <div
-      className={cn("relative border-b", !hasBg && "bg-primary/5")}
-      style={{
-        ...overrides,
-        backgroundColor: hasBg ? "var(--block-bg)" : undefined,
-        backgroundImage: hasBg ? "var(--block-bg-image, none)" : undefined,
-        color: hasFg ? "var(--block-fg)" : undefined,
-      }}
-    >
-      <BlockPaletteOverlay
-        roles={["bg", "fg", "accent"]}
-        values={block.props}
-        onChange={onChange}
-        editMode={editMode}
-      />
+    <div className="relative border-b bg-transparent text-foreground">
       <div className="max-w-5xl mx-auto px-6 py-3 flex items-start gap-3 text-sm">
-        <Megaphone
-          className={cn("size-4 mt-0.5 shrink-0", !hasAccent && "text-primary")}
-          style={hasAccent ? { color: "var(--block-accent)" } : undefined}
-        />
+        <Megaphone className="size-4 mt-0.5 shrink-0 text-primary" />
         {editMode ? (
           <div className="flex-1 flex items-start gap-3">
             <InlineText
@@ -87,15 +45,15 @@ function AnnouncementBlock({ block, editMode, onChange }: { block: Extract<Block
               onCommit={(v) => onChange({ ...block.props, text: v })}
               editing
               placeholder="Add an announcement…"
-              className={cn("flex-1", !hasFg && "text-foreground/90")}
+              className="flex-1 text-foreground/90"
             />
-            <label className={cn("flex items-center gap-2 text-xs shrink-0 pt-0.5", !hasFg && "text-muted-foreground")}>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground shrink-0 pt-0.5">
               <span>Show</span>
               <Switch checked={visible} onCheckedChange={(v) => onChange({ ...block.props, visible: v })} />
             </label>
           </div>
         ) : (
-          <span className={cn(!hasFg && "text-foreground/90")}>{block.props.text}</span>
+          <span className="text-foreground/90">{block.props.text}</span>
         )}
       </div>
     </div>
@@ -104,20 +62,8 @@ function AnnouncementBlock({ block, editMode, onChange }: { block: Extract<Block
 
 function AboutBlock({ block, editMode, onChange }: { block: Extract<Block, { type: "about" }>; editMode: boolean; onChange: (p: any) => void }) {
   if (!editMode && !block.props.text?.trim()) return null;
-  const overrides = resolveBlockColors(block.props);
-  const hasBg = !!block.props.bg;
-  const hasFg = !!block.props.fg;
   return (
-    <Section
-      className="relative group/section"
-      style={{
-        ...overrides,
-        backgroundColor: hasBg ? "var(--block-bg)" : undefined,
-        backgroundImage: hasBg ? "var(--block-bg-image, none)" : undefined,
-        color: hasFg ? "var(--block-fg)" : undefined,
-      }}
-    >
-      <BlockPaletteOverlay roles={["bg", "fg"]} values={block.props} onChange={onChange} editMode={editMode} />
+    <Section className="relative text-foreground">
       <div className="grid md:grid-cols-3 gap-10">
         <InlineText
           as="h2"
@@ -127,7 +73,7 @@ function AboutBlock({ block, editMode, onChange }: { block: Extract<Block, { typ
           placeholder="About"
           className="text-2xl font-semibold md:col-span-1"
         />
-        <div className={cn("md:col-span-2 text-base leading-relaxed", !hasFg && "text-foreground/80")}>
+        <div className="md:col-span-2 text-base leading-relaxed text-foreground/80">
           <InlineMultiline
             value={block.props.text ?? ""}
             onCommit={(v) => onChange({ ...block.props, text: v })}
@@ -141,11 +87,11 @@ function AboutBlock({ block, editMode, onChange }: { block: Extract<Block, { typ
   );
 }
 
-function InfoCard({ icon: Icon, label, children, accentColor }: { icon: any; label: string; children: React.ReactNode; accentColor?: string }) {
+function InfoCard({ icon: Icon, label, children }: { icon: any; label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border bg-card p-5" style={accentColor ? { borderColor: accentColor } : undefined}>
+    <div className="rounded-lg border border-border bg-card p-5">
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-        <Icon className="size-4" style={accentColor ? { color: accentColor } : undefined} />
+        <Icon className="size-4" />
         <span>{label}</span>
       </div>
       <div className="text-foreground">{children}</div>
@@ -158,21 +104,8 @@ function VisitBlock({ block, ctx }: { block: Extract<Block, { type: "visit" }>; 
   const hasAny =
     !!block.props.hours?.trim() || !!libContact.address || !!libContact.phone || !!libContact.email || (libContact.languages?.length ?? 0) > 0;
   if (!editMode && !hasAny) return null;
-  const overrides = resolveBlockColors(block.props);
-  const hasBg = !!block.props.bg;
-  const hasFg = !!block.props.fg;
-  const accentVar = block.props.accent ? "var(--block-accent)" : undefined;
   return (
-    <Section
-      className={cn("relative", !hasBg && "bg-muted/30")}
-      style={{
-        ...overrides,
-        backgroundColor: hasBg ? "var(--block-bg)" : undefined,
-        backgroundImage: hasBg ? "var(--block-bg-image, none)" : undefined,
-        color: hasFg ? "var(--block-fg)" : undefined,
-      }}
-    >
-      <BlockPaletteOverlay roles={["bg", "fg", "accent"]} values={block.props} onChange={onChange} editMode={editMode} />
+    <Section className="relative text-foreground">
       <InlineText
         as="h2"
         value={block.props.heading ?? "Visit us"}
@@ -183,7 +116,7 @@ function VisitBlock({ block, ctx }: { block: Extract<Block, { type: "visit" }>; 
       />
       <div className="grid sm:grid-cols-2 gap-6">
         {(editMode || block.props.hours?.trim()) && (
-          <InfoCard icon={Clock} label="Opening hours" accentColor={accentVar}>
+          <InfoCard icon={Clock} label="Opening hours">
             <InlineMultiline
               value={block.props.hours ?? ""}
               onCommit={(v) => onChange({ ...block.props, hours: v })}
@@ -194,28 +127,28 @@ function VisitBlock({ block, ctx }: { block: Extract<Block, { type: "visit" }>; 
           </InfoCard>
         )}
         {libContact.address && (
-          <InfoCard icon={MapPin} label="Address" accentColor={accentVar}>
+          <InfoCard icon={MapPin} label="Address">
             <p className="whitespace-pre-line">{libContact.address}</p>
           </InfoCard>
         )}
         {libContact.phone && (
-          <InfoCard icon={Phone} label="Phone" accentColor={accentVar}>
+          <InfoCard icon={Phone} label="Phone">
             <a href={`tel:${libContact.phone}`} className="hover:underline">{libContact.phone}</a>
           </InfoCard>
         )}
         {libContact.email && (
-          <InfoCard icon={Mail} label="Email" accentColor={accentVar}>
+          <InfoCard icon={Mail} label="Email">
             <a href={`mailto:${libContact.email}`} className="hover:underline break-all">{libContact.email}</a>
           </InfoCard>
         )}
         {(libContact.languages?.length ?? 0) > 0 && (
-          <InfoCard icon={Languages} label="Languages" accentColor={accentVar}>
+          <InfoCard icon={Languages} label="Languages">
             <p>{libContact.languages!.join(", ")}</p>
           </InfoCard>
         )}
       </div>
       {editMode && (
-        <p className={cn("text-xs mt-6", !hasFg && "text-muted-foreground")}>
+        <p className="text-xs text-muted-foreground mt-6">
           Address, phone, email, and languages come from Settings → General.
         </p>
       )}
@@ -225,20 +158,8 @@ function VisitBlock({ block, ctx }: { block: Extract<Block, { type: "visit" }>; 
 
 function RichTextBlock({ block, editMode, onChange }: { block: Extract<Block, { type: "rich_text" }>; editMode: boolean; onChange: (p: any) => void }) {
   if (!editMode && !block.props.heading?.trim() && !block.props.text?.trim()) return null;
-  const overrides = resolveBlockColors(block.props);
-  const hasBg = !!block.props.bg;
-  const hasFg = !!block.props.fg;
   return (
-    <Section
-      className="relative"
-      style={{
-        ...overrides,
-        backgroundColor: hasBg ? "var(--block-bg)" : undefined,
-        backgroundImage: hasBg ? "var(--block-bg-image, none)" : undefined,
-        color: hasFg ? "var(--block-fg)" : undefined,
-      }}
-    >
-      <BlockPaletteOverlay roles={["bg", "fg"]} values={block.props} onChange={onChange} editMode={editMode} />
+    <Section className="relative text-foreground">
       {(editMode || block.props.heading?.trim()) && (
         <InlineText
           as="h2"
@@ -249,7 +170,7 @@ function RichTextBlock({ block, editMode, onChange }: { block: Extract<Block, { 
           className="text-2xl font-semibold mb-6"
         />
       )}
-      <div className={cn("text-base leading-relaxed max-w-3xl", !hasFg && "text-foreground/80")}>
+      <div className="text-base leading-relaxed max-w-3xl text-foreground/80">
         <InlineMultiline
           value={block.props.text ?? ""}
           onCommit={(v) => onChange({ ...block.props, text: v })}
@@ -292,20 +213,8 @@ function ImageBlock({ block, ctx }: { block: Extract<Block, { type: "image" }>; 
   }
 
   if (!editMode && !path) return null;
-  const overrides = resolveBlockColors(block.props);
-  const hasBg = !!block.props.bg;
-  const hasFg = !!block.props.fg;
   return (
-    <section
-      className="relative border-t"
-      style={{
-        ...overrides,
-        backgroundColor: hasBg ? "var(--block-bg)" : undefined,
-        backgroundImage: hasBg ? "var(--block-bg-image, none)" : undefined,
-        color: hasFg ? "var(--block-fg)" : undefined,
-      }}
-    >
-      <BlockPaletteOverlay roles={["bg", "fg"]} values={block.props} onChange={onChange} editMode={editMode} />
+    <section className="relative border-t bg-transparent text-foreground">
       <div className="max-w-5xl mx-auto px-6 py-10">
         <div className="relative rounded-lg overflow-hidden bg-muted aspect-[16/7]">
           {path ? (
@@ -335,7 +244,7 @@ function ImageBlock({ block, ctx }: { block: Extract<Block, { type: "image" }>; 
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.currentTarget.value = ""; }} />
         </div>
         {(editMode || block.props.caption?.trim()) && (
-          <div className={cn("mt-3 text-sm text-center", !hasFg && "text-muted-foreground")}>
+          <div className="mt-3 text-sm text-center text-muted-foreground">
             <InlineText
               value={block.props.caption ?? ""}
               onCommit={(v) => onChange({ ...block.props, caption: v })}
