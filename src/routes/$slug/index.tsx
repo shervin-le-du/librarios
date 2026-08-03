@@ -453,12 +453,12 @@ function HeroBackground({
     <div className="absolute inset-0">
       {path ? (
         <>
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0">
             {signed.data ? (
               <img
                 src={signed.data}
                 alt=""
-                className="h-full max-w-full object-contain object-center"
+                className="w-full h-full object-cover object-center"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-muted">
