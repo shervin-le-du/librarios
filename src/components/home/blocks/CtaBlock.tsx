@@ -24,7 +24,7 @@ export function CtaBlock({ block, editMode, onChange }: CtaBlockProps) {
   return (
     <section
       className={cn(
-        "relative overflow-hidden border-t",
+        "relative overflow-hidden",
         background === "gradient" && "bg-gradient-to-br from-cta-accent/20 via-cta-bg to-cta-bg",
         background === "solid" && "bg-cta-bg",
       )}

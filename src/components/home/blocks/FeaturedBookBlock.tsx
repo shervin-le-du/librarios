@@ -97,10 +97,10 @@ export function FeaturedBookBlock({ block, editMode, libraryId, onChange }: Prop
   const isExternal = /^https?:\/\//i.test(href);
 
   return (
-    <section className="relative border-t bg-transparent text-foreground">
+    <section className="relative bg-transparent text-foreground">
       <div className="max-w-5xl mx-auto px-6 py-16">
         {(editMode || p.intro?.trim()) && (
-          <div className="uppercase tracking-widest text-xs font-medium mb-6 text-primary">
+          <div className="uppercase tracking-widest text-xs font-medium mb-6 text-muted-foreground">
             <InlineText
               value={p.intro ?? ""}
               onCommit={(v) => onChange({ ...p, intro: v })}

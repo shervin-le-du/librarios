@@ -25,7 +25,7 @@ type Ctx = {
 
 function Section({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <section className={cn("border-t bg-transparent", className)}>
+    <section className={cn("bg-transparent", className)}>
       <div className="max-w-5xl mx-auto px-6 py-14">{children}</div>
     </section>
   );
@@ -35,7 +35,7 @@ function AnnouncementBlock({ block, editMode, onChange }: { block: Extract<Block
   const visible = block.props.visible !== false;
   if (!editMode && (!visible || !block.props.text?.trim())) return null;
   return (
-    <div className="relative border-b bg-transparent text-foreground">
+    <div className="relative bg-transparent text-foreground">
       <div className="max-w-5xl mx-auto px-6 py-3 flex items-start gap-3 text-sm">
         <Megaphone className="size-4 mt-0.5 shrink-0 text-primary" />
         {editMode ? (
@@ -214,7 +214,7 @@ function ImageBlock({ block, ctx }: { block: Extract<Block, { type: "image" }>; 
 
   if (!editMode && !path) return null;
   return (
-    <section className="relative border-t bg-transparent text-foreground">
+    <section className="relative bg-transparent text-foreground">
       <div className="max-w-5xl mx-auto px-6 py-10">
         <div className="relative rounded-lg overflow-hidden bg-muted aspect-[16/7]">
           {path ? (

@@ -214,7 +214,7 @@ export function BlockList({
   if (blocks.length === 0) {
     if (!editMode) return null;
     return (
-      <div className="border-t py-20 flex flex-col items-center justify-center gap-3 text-center">
+      <div className="py-20 flex flex-col items-center justify-center gap-3 text-center">
         <p className="text-muted-foreground text-sm">This page has no content between the hero and the footer.</p>
         <AddBlockMenu variant="empty" onAdd={(t) => insertAt(0, t)} />
       </div>
@@ -238,7 +238,7 @@ export function BlockList({
               <div
                 className={
                   paired
-                    ? "grid grid-cols-1 md:grid-cols-2 md:[&>*+*]:border-l"
+                    ? "grid grid-cols-1 md:grid-cols-2"
                     : undefined
                 }
               >

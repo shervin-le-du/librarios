@@ -209,7 +209,7 @@ function HomeContent({
       <section
         ref={heroRef}
         className={cn(
-          "relative w-full overflow-hidden rounded-none group",
+          "relative w-full overflow-hidden rounded-none group border-b",
           cfg.hero_image_url && "min-h-[384px] md:min-h-[484px] -mt-16",
         )}
         style={cfg.hero_image_url ? { "--hero-foreground": contrastFg("0 0% 25%") } as React.CSSProperties : undefined}
@@ -453,18 +453,20 @@ function HeroBackground({
     <div className="absolute inset-0">
       {path ? (
         <>
-          {signed.data ? (
-            <img
-              src={signed.data}
-              alt=""
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted">
-              <Loader2 className="size-4 animate-spin" />
-            </div>
-          )}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/20" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            {signed.data ? (
+              <img
+                src={signed.data}
+                alt=""
+                className="h-full max-w-full object-contain object-center"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-muted">
+                <Loader2 className="size-4 animate-spin" />
+              </div>
+            )}
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/20 pointer-events-none" />
         </>
       ) : editMode ? (
         <div className="w-full h-full border-2 border-dashed border-border bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
