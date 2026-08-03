@@ -414,6 +414,17 @@ const FEEDBACK_DEFAULTS: Record<FeedbackField, string> = {
   warning: "#f59e0b",
 };
 
+/** Omit picker placeholder defaults so applyBrandingToDocument can derive from background. */
+function optionalBrandingColor(
+  saved: string | undefined | null,
+  current: string,
+  defaultColor: string,
+): string | undefined {
+  if (saved) return current || undefined;
+  if (current !== defaultColor) return current || undefined;
+  return undefined;
+}
+
 function ColorsTab({
   branding, fallbackPrimary, onSave, isSaving,
 }: {
@@ -479,12 +490,12 @@ function ColorsTab({
       ...brand,
       background,
       ...feedback,
-      card: advanced.card,
-      muted: advanced.muted,
-      border: advanced.border,
-      sidebar: advanced.sidebar,
-      navbar: advanced.navbar,
-      foreground: advanced.foreground,
+      card: optionalBrandingColor(branding.card, advanced.card, ADVANCED_DEFAULTS.card),
+      muted: optionalBrandingColor(branding.muted, advanced.muted, ADVANCED_DEFAULTS.muted),
+      border: optionalBrandingColor(branding.border, advanced.border, ADVANCED_DEFAULTS.border),
+      sidebar: optionalBrandingColor(branding.sidebar, advanced.sidebar, ADVANCED_DEFAULTS.sidebar),
+      navbar: optionalBrandingColor(branding.navbar, advanced.navbar, ADVANCED_DEFAULTS.navbar),
+      foreground: optionalBrandingColor(branding.foreground, advanced.foreground, FOREGROUND_DEFAULT),
     });
     return () => { applyBrandingToDocument(branding); };
   }, [brand, background, feedback, advanced, branding]);
@@ -563,12 +574,12 @@ function ColorsTab({
               destructive: feedback.destructive || undefined,
               success: feedback.success || undefined,
               warning: feedback.warning || undefined,
-              card: advanced.card || undefined,
-              muted: advanced.muted || undefined,
-              border: advanced.border || undefined,
-              sidebar: advanced.sidebar || undefined,
-              navbar: advanced.navbar || undefined,
-              foreground: advanced.foreground || undefined,
+              card: optionalBrandingColor(branding.card, advanced.card, ADVANCED_DEFAULTS.card),
+              muted: optionalBrandingColor(branding.muted, advanced.muted, ADVANCED_DEFAULTS.muted),
+              border: optionalBrandingColor(branding.border, advanced.border, ADVANCED_DEFAULTS.border),
+              sidebar: optionalBrandingColor(branding.sidebar, advanced.sidebar, ADVANCED_DEFAULTS.sidebar),
+              navbar: optionalBrandingColor(branding.navbar, advanced.navbar, ADVANCED_DEFAULTS.navbar),
+              foreground: optionalBrandingColor(branding.foreground, advanced.foreground, FOREGROUND_DEFAULT),
             })
           }
         >
