@@ -408,7 +408,7 @@ function AuthedTenant({ library, slug, logoUrl, onSignOut }: {
                 onClick={item.onClick}
                 className={
                   "px-4 py-2.5 text-sm whitespace-nowrap " +
-                  (item.active ? "border-b-2 border-primary font-medium text-primary" : "text-muted-foreground")
+                  (item.active ? "border-b-2 border-foreground font-medium text-foreground" : "text-muted-foreground")
                 }
               >
                 {item.label}
@@ -422,7 +422,7 @@ function AuthedTenant({ library, slug, logoUrl, onSignOut }: {
               const active = path === resolved || (item.to !== "/$slug/app/dashboard" && path.startsWith(resolved));
               return (
                 <Link key={item.to} to={item.to} params={{ slug }}
-                  className={"px-4 py-2.5 text-sm whitespace-nowrap " + (active ? "border-b-2 border-primary font-medium text-primary" : "text-muted-foreground")}>
+                  className={"px-4 py-2.5 text-sm whitespace-nowrap " + (active ? "border-b-2 border-foreground font-medium text-foreground" : "text-muted-foreground")}>
                   {item.label}
                 </Link>
               );

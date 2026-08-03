@@ -109,7 +109,7 @@ export function LibraryBrandingSection() {
               className={cn(
                 "flex items-center gap-2 px-4 py-2.5 text-sm border-b-2 -mb-px whitespace-nowrap transition-colors",
                 tab === t.id
-                  ? "border-primary text-primary font-medium"
+                  ? "border-foreground text-foreground font-medium"
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >

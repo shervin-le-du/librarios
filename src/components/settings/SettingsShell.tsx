@@ -47,8 +47,8 @@ export function SettingsShell({
                           className={
                             "w-full flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors text-left " +
                             (it.active
-                              ? "bg-muted text-foreground font-medium"
-                              : "text-foreground/80 hover:bg-muted hover:text-foreground")
+                              ? "bg-foreground/5 text-foreground font-medium ring-1 ring-border"
+                              : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground")
                           }
                         >
                           <Icon className="size-4 shrink-0" />

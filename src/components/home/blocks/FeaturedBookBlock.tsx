@@ -100,7 +100,7 @@ export function FeaturedBookBlock({ block, editMode, libraryId, onChange }: Prop
     <section className="relative bg-transparent text-foreground">
       <div className="max-w-5xl mx-auto px-6 py-16">
         {(editMode || p.intro?.trim()) && (
-          <div className="uppercase tracking-widest text-xs font-medium mb-6 text-brand-on-surface">
+          <div className="uppercase tracking-widest text-xs font-medium mb-6">
             <InlineText
               value={p.intro ?? ""}
               onCommit={(v) => onChange({ ...p, intro: v })}

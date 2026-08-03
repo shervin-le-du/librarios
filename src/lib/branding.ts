@@ -377,20 +377,41 @@ function hslStr(h: number, s: number, l: number): string {
   return `${Math.round(h)} ${Math.round(Math.max(0, Math.min(100, s)))}% ${Math.round(Math.max(0, Math.min(100, l)))}%`;
 }
 
-/** Keep primary hue for on-page labels when primary lightness matches the page background. */
-function primaryOnSurface(primaryHsl: string, bgHsl: string): string {
-  const p = parseHslParts(primaryHsl);
-  const b = parseHslParts(bgHsl);
-  if (!p || !b) return primaryHsl;
-  if (Math.abs(p.l - b.l) >= 22) return primaryHsl;
-  const newL = b.l > 50 ? 32 : 72;
-  return hslStr(p.h, Math.min(100, p.s + 5), newL);
+function hslContrasts(a: string, b: string, minDelta = 18): boolean {
+  const pa = parseHslParts(a);
+  const pb = parseHslParts(b);
+  if (!pa || !pb) return true;
+  return Math.abs(pa.l - pb.l) >= minDelta;
+}
+
+/** Sidebar nav highlight — prefer accent; ensure fill contrasts with sidebar background. */
+function sidebarNavTokens(
+  sidebarHsl: string | null,
+  primaryHsl: string | null,
+  accentHsl: string | null,
+): { bg: string; fg: string } | null {
+  const candidates = [accentHsl, primaryHsl].filter(Boolean) as string[];
+  if (!candidates.length) return null;
+
+  if (sidebarHsl) {
+    const contrasting = candidates.find((c) => hslContrasts(c, sidebarHsl));
+    if (contrasting) return { bg: contrasting, fg: contrastFg(contrasting) };
+
+    const base = candidates[0];
+    const cp = parseHslParts(base)!;
+    const sp = parseHslParts(sidebarHsl)!;
+    const newL = sp.l > 50 ? Math.max(8, sp.l - 28) : Math.min(92, sp.l + 28);
+    const adjusted = hslStr(cp.h, Math.min(100, cp.s + 8), newL);
+    return { bg: adjusted, fg: contrastFg(adjusted) };
+  }
+
+  const c = candidates[0];
+  return { bg: c, fg: contrastFg(c) };
 }
 
 // Tracks which properties we set so cleanup can remove them all.
 const BRAND_VARS = [
   "primary", "primary-foreground",
-  "brand-on-surface",
   "accent", "accent-foreground",
   "secondary", "secondary-foreground",
   "background", "foreground",
@@ -500,14 +521,8 @@ export function applyBrandingToDocument(branding: LibraryBranding | null | undef
   setVar("background", bgHsl);
   setVar("foreground", fgHsl);
 
-  const surfacePrimary = primaryHsl ?? accentHsl;
-  if (surfacePrimary && bgHsl) {
-    setVar("brand-on-surface", primaryOnSurface(surfacePrimary, bgHsl));
-  } else {
-    setVar("brand-on-surface", surfacePrimary);
-  }
-
   // Derived surfaces when we have both bg and fg
+  let sidebarHslForNav: string | null = null;
   if (bgHsl && fgHsl) {
     const bgP = parseHslParts(bgHsl)!;
     const fgP = parseHslParts(fgHsl)!;
@@ -542,9 +557,9 @@ export function applyBrandingToDocument(branding: LibraryBranding | null | undef
     }
 
     // Sidebar mirrors — honor explicit override
-    const sidebarHsl = b?.sidebar ? hexToHsl(b.sidebar) : hslStr(bgP.h, bgP.s, shiftL(2));
-    setVar("sidebar", sidebarHsl);
-    setVar("sidebar-foreground", sidebarHsl ? contrastFg(sidebarHsl) : fgHsl);
+    sidebarHslForNav = b?.sidebar ? hexToHsl(b.sidebar) : hslStr(bgP.h, bgP.s, shiftL(2));
+    setVar("sidebar", sidebarHslForNav);
+    setVar("sidebar-foreground", sidebarHslForNav ? contrastFg(sidebarHslForNav) : fgHsl);
     setVar("sidebar-accent", mutedHsl);
     setVar("sidebar-accent-foreground", fgHsl);
 
@@ -563,13 +578,11 @@ export function applyBrandingToDocument(branding: LibraryBranding | null | undef
 
   // Ring — follows primary, else accent
   setVar("ring", primaryHsl ?? accentHsl);
-  if (primaryHsl) {
-    setVar("sidebar-primary", primaryHsl);
-    setVar(
-      "sidebar-primary-foreground",
-      b?.primary_foreground ? hexToHsl(b.primary_foreground) : contrastFg(primaryHsl),
-    );
-    setVar("sidebar-ring", primaryHsl);
+  const sidebarNav = sidebarNavTokens(sidebarHslForNav, primaryHsl, accentHsl);
+  if (sidebarNav) {
+    setVar("sidebar-primary", sidebarNav.bg);
+    setVar("sidebar-primary-foreground", sidebarNav.fg);
+    setVar("sidebar-ring", sidebarNav.bg);
   } else {
     setVar("sidebar-primary", null);
     setVar("sidebar-primary-foreground", null);
