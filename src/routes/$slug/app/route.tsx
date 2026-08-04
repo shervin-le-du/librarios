@@ -15,7 +15,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   BookOpen, LayoutDashboard, Library as LibraryIcon, Users,
   ArrowLeftRight, LifeBuoy, AlertTriangle, ArrowLeft,
@@ -359,11 +358,10 @@ function AuthedTenant({ library, slug, logoUrl, onSignOut }: {
           <div className="px-1">
             <LibrarySwitcher currentSlug={slug} align="start" />
           </div>
-          <div className="px-3 pt-1 pb-1 text-xs text-muted-foreground flex items-center justify-between">
-            <span className="truncate">{isSupport ? "Support (platform)" : ""}</span>
-            <Badge variant="outline" className="capitalize ml-2">{effectiveRole}</Badge>
-          </div>
-          <UserBubble slug={slug} onSignOut={onSignOut} />
+          {isSupport && (
+            <div className="px-3 pt-1 pb-1 text-xs text-muted-foreground">Support (platform)</div>
+          )}
+          <UserBubble slug={slug} onSignOut={onSignOut} role={effectiveRole} />
         </div>
       </aside>
 
@@ -387,8 +385,7 @@ function AuthedTenant({ library, slug, logoUrl, onSignOut }: {
             <span className="font-semibold truncate">{library.name}</span>
           </Link>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="capitalize">{effectiveRole}</Badge>
-            <UserBubble slug={slug} onSignOut={onSignOut} align="end" />
+          <UserBubble slug={slug} onSignOut={onSignOut} align="end" role={effectiveRole} />
           </div>
         </header>
 

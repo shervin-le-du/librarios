@@ -105,30 +105,12 @@ export function toEditableFill(v: unknown, fallback: string = "#000000"): Fill {
   return parseFill(v) ?? { type: "solid", color: fallback };
 }
 
-/* ── Curated gradient presets ───────────────────────────────────────── */
-
-const g = (
-  mode: "linear" | "radial",
-  angle: number,
-  ...stops: [string, number][]
-): GradientFill => ({
-  type: "gradient",
-  mode,
-  angle,
-  stops: stops.map(([color, position]) => ({ color, position })),
-});
-
-export const GRADIENT_PRESETS: { name: string; fill: GradientFill }[] = [
-  { name: "Sunset",     fill: g("linear",  30,  ["#ff9966", 0], ["#ff5e62", 100]) },
-  { name: "Peach",      fill: g("linear",  45,  ["#ffecd2", 0], ["#fcb69f", 100]) },
-  { name: "Coral",      fill: g("linear",  60,  ["#f6d365", 0], ["#fda085", 100]) },
-  { name: "Ocean",      fill: g("linear", 135,  ["#2193b0", 0], ["#6dd5ed", 100]) },
-  { name: "Sky",        fill: g("linear", 180,  ["#a1c4fd", 0], ["#c2e9fb", 100]) },
-  { name: "Midnight",   fill: g("linear", 160,  ["#0f172a", 0], ["#1e3a8a", 100]) },
-  { name: "Aurora",     fill: g("linear", 120,  ["#00c9ff", 0], ["#92fe9d", 100]) },
-  { name: "Forest",     fill: g("linear", 160,  ["#134e5e", 0], ["#71b280", 100]) },
-  { name: "Plum",       fill: g("linear", 135,  ["#3b0764", 0], ["#a855f7", 100]) },
-  { name: "Rose",       fill: g("linear",  45,  ["#ee9ca7", 0], ["#ffdde1", 100]) },
-  { name: "Graphite",   fill: g("linear", 180,  ["#232526", 0], ["#414345", 100]) },
-  { name: "Radial glow",fill: g("radial",  0,   ["#5b6cff", 0], ["#0f172a", 100]) },
-];
+export { isGradientBrandingSafe, normalizeBrandingGradient, createBrandingGradientFromHex } from "./gradient-safety";
+export type { BrandingLightnessSide } from "./gradient-safety";
+export {
+  GRADIENT_PRESETS,
+  GRADIENT_PRESET_GROUPS,
+  GRADIENT_PRESET_DEFAULTS,
+  GRADIENT_SAFE_PRESET_GROUPS,
+} from "./gradient-presets";
+export type { GradientPreset, GradientPresetGroup } from "./gradient-presets";

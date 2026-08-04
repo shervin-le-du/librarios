@@ -96,8 +96,8 @@
   --success: 154 55% 39%;
   --success-foreground: 43 30% 95%;
 
-  --border: 210 25% 8% / 0.08;
-  --input: 210 25% 8% / 0.12;
+  --border: 210 25% 8%;
+  --input: 210 25% 8%;
   --ring: 234 100% 68%;
 
   --sidebar: 43 21% 94%;
@@ -106,7 +106,7 @@
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 40 21% 89%;
   --sidebar-accent-foreground: 210 25% 8%;
-  --sidebar-border: 210 25% 8% / 0.08;
+  --sidebar-border: 210 25% 8%;
   --sidebar-ring: 234 100% 68%;
 
   /* Bold editorial CTA band */

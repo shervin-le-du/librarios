@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fillSolidHex, fillToCss, parseFill } from "./fill";
+import { fillSolidHex, fillToCss, parseFill, type Fill } from "./fill";
 
 
 export type LibraryBranding = {
@@ -19,24 +19,24 @@ export type LibraryBranding = {
   // Legacy — kept so old data still reads without errors
   icon_name?: string | null;
   icon_color?: string | null;
-  // Brand colors
-  primary?: string;
+  // Brand colors — primary is derived from background at runtime; stored value is legacy only.
+  primary?: string | null;
   primary_foreground?: string;
   accent?: string;
   accent_foreground?: string;
   secondary?: string;
   // Surface
   background?: string;
-  foreground?: string;
-  card?: string;
-  muted?: string;
-  border?: string;
-  sidebar?: string;
+  foreground?: string | null;
+  card?: string | null;
+  muted?: string | null;
+  border?: string | null;
+  sidebar?: string | null;
   navbar?: string;
-  // Feedback
-  destructive?: string;
-  success?: string;
-  warning?: string;
+  // Feedback — derived at runtime; stored values are legacy only.
+  destructive?: string | null;
+  success?: string | null;
+  warning?: string | null;
   // Typography
   heading_font?: string;
   body_font?: string;
@@ -144,17 +144,6 @@ export const COLOR_BACKGROUND_PRESETS = [
   { name: "charcoal", hex: "#111827" },
 ];
 
-export const COLOR_FOREGROUND_PRESETS = [
-  { name: "ink", hex: "#0f172a" },
-  { name: "graphite", hex: "#1e293b" },
-  { name: "slate", hex: "#334155" },
-  { name: "charcoal", hex: "#111827" },
-  { name: "black", hex: "#000000" },
-  { name: "white", hex: "#ffffff" },
-  { name: "paper", hex: "#f7f5f0" },
-  { name: "stone", hex: "#e7e5e4" },
-];
-
 export const COLOR_SECONDARY_PRESETS = [
   { name: "slate", hex: "#e2e8f0" },
   { name: "stone", hex: "#e7e5e4" },
@@ -175,23 +164,6 @@ export const COLOR_CARD_PRESETS = [
   { name: "graphite", hex: "#1e293b" },
   { name: "ink", hex: "#0f172a" },
   { name: "charcoal", hex: "#111827" },
-];
-
-export const COLOR_MUTED_PRESETS = [
-  { name: "stone", hex: "#f1efe9" },
-  { name: "slate", hex: "#eef2f6" },
-  { name: "mist", hex: "#f1f5f9" },
-  { name: "sand", hex: "#efe9db" },
-  { name: "graphite", hex: "#1f2937" },
-  { name: "shadow", hex: "#111827" },
-];
-
-export const COLOR_BORDER_PRESETS = [
-  { name: "hairline", hex: "#e5e7eb" },
-  { name: "slate", hex: "#cbd5e1" },
-  { name: "stone", hex: "#d6d3d1" },
-  { name: "ink", hex: "#0f172a" },
-  { name: "graphite", hex: "#334155" },
 ];
 
 export const COLOR_SIDEBAR_PRESETS = [
@@ -377,11 +349,175 @@ function hslStr(h: number, s: number, l: number): string {
   return `${Math.round(h)} ${Math.round(Math.max(0, Math.min(100, s)))}% ${Math.round(Math.max(0, Math.min(100, l)))}%`;
 }
 
+function hexToHslParts(hex: string): { h: number; s: number; l: number } | null {
+  const hsl = hexToHsl(hex);
+  if (!hsl) return null;
+  return parseHslParts(hsl);
+}
+
+function gradientStopParts(fill: Fill | null): { h: number; s: number; l: number }[] | null {
+  if (fill?.type !== "gradient") return null;
+  return fill.stops
+    .map((s) => hexToHslParts(s.color))
+    .filter((p): p is { h: number; s: number; l: number } => !!p);
+}
+
+/** Pick text anchors — gradients use the lightest stop so fg/muted read on the whole ramp. */
+function textDerivationAnchors(
+  solidHsl: string,
+  fill: Fill | null,
+): { fgAnchor: { h: number; s: number; l: number }; surfaceAnchor: { h: number; s: number; l: number } } | null {
+  const surfaceAnchor = parseHslParts(solidHsl);
+  if (!surfaceAnchor) return null;
+  const stops = gradientStopParts(fill);
+  if (!stops?.length) {
+    return { fgAnchor: surfaceAnchor, surfaceAnchor };
+  }
+  const fgAnchor = stops.reduce((a, b) => (a.l >= b.l ? a : b));
+  return { fgAnchor, surfaceAnchor };
+}
+
+function deriveForeground(solidHsl: string, fill: Fill | null): string {
+  const anchors = textDerivationAnchors(solidHsl, fill);
+  if (!anchors) return contrastFg(solidHsl);
+  const { fgAnchor } = anchors;
+  return contrastFg(hslStr(fgAnchor.h, fgAnchor.s, fgAnchor.l));
+}
+
+function deriveMutedForeground(fgHsl: string, solidHsl: string, fill: Fill | null): string {
+  const anchors = textDerivationAnchors(solidHsl, fill);
+  const fgP = parseHslParts(fgHsl);
+  if (!anchors || !fgP) return fgHsl;
+  const blend = fill?.type === "gradient" ? 0.4 : 0.45;
+  const mfL = fgP.l + (anchors.fgAnchor.l - fgP.l) * blend;
+  return hslStr(fgP.h, Math.max(0, fgP.s - 5), mfL);
+}
+
 function hslContrasts(a: string, b: string, minDelta = 18): boolean {
   const pa = parseHslParts(a);
   const pb = parseHslParts(b);
   if (!pa || !pb) return true;
   return Math.abs(pa.l - pb.l) >= minDelta;
+}
+
+function hslPartsContrasts(
+  a: { h: number; s: number; l: number },
+  b: { h: number; s: number; l: number },
+  minDelta = 18,
+): boolean {
+  return Math.abs(a.l - b.l) >= minDelta;
+}
+
+function pickStopByLightness(
+  stops: { h: number; s: number; l: number }[],
+  pick: "min" | "max",
+): { h: number; s: number; l: number } {
+  return stops.reduce((a, b) => (pick === "min" ? (a.l <= b.l ? a : b) : (a.l >= b.l ? a : b)));
+}
+
+/** Contrast-safe emphasis color for badges, rings, and UI primitives — derived from page background. */
+export function deriveEmphasisPrimary(surfaceHsl: string, fill: Fill | null): string {
+  const surface = parseHslParts(surfaceHsl);
+  if (!surface) return surfaceHsl;
+
+  const stops = gradientStopParts(fill);
+  const darkest = stops?.length ? pickStopByLightness(stops, "min") : surface;
+  const lightest = stops?.length ? pickStopByLightness(stops, "max") : surface;
+
+  let emphasis: { h: number; s: number; l: number };
+  if (surface.l < 45) {
+    // Dark brand surface — pop with the lighter end of the ramp.
+    emphasis = { ...lightest };
+  } else {
+    // Light/medium surface — deepen the base stop for emphasis.
+    emphasis = { h: darkest.h, s: Math.min(100, darkest.s + 5), l: Math.max(8, darkest.l - 15) };
+  }
+
+  if (!hslPartsContrasts(emphasis, surface)) {
+    emphasis.l = surface.l >= 50
+      ? Math.max(8, surface.l - 22)
+      : Math.min(92, surface.l + 22);
+  }
+
+  return hslStr(emphasis.h, emphasis.s, emphasis.l);
+}
+
+function hslStringToHex(hsl: string): string | null {
+  const p = parseHslParts(hsl);
+  if (!p) return null;
+  const h = p.h / 360;
+  const s = p.s / 100;
+  const l = p.l / 100;
+  const hue2rgb = (pp: number, q: number, t: number) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return pp + (q - pp) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return pp + (q - pp) * (2 / 3 - t) * 6;
+    return pp;
+  };
+  let r: number;
+  let g: number;
+  let b: number;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const pp = 2 * l - q;
+    r = hue2rgb(pp, q, h + 1 / 3);
+    g = hue2rgb(pp, q, h);
+    b = hue2rgb(pp, q, h - 1 / 3);
+  }
+  const toHex = (x: number) => Math.round(x * 255).toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+/** Hex emphasis color derived from a stored background fill (solid or gradient). */
+export function derivedEmphasisPrimaryHex(background: string | null | undefined): string | null {
+  if (!background) return null;
+  const fill = parseFill(background);
+  const solid = fillSolidHex(fill);
+  if (!solid) return null;
+  const surfaceHsl = hexToHsl(solid);
+  if (!surfaceHsl) return null;
+  return hslStringToHex(deriveEmphasisPrimary(surfaceHsl, fill));
+}
+
+/** Universal semantic hues — red, amber, green — aligned with styles.css defaults. */
+export const FEEDBACK_COLORS = {
+  destructive: "#dc2626",
+  warning: "#f59e0b",
+  success: "#059669",
+} as const;
+
+const FEEDBACK_TOKENS = {
+  destructive: { h: 0, s: 72, l: 50 },
+  warning: { h: 38, s: 92, l: 50 },
+  success: { h: 154, s: 76, l: 38 },
+} as const;
+
+export type FeedbackRole = keyof typeof FEEDBACK_TOKENS;
+
+/** Status colors with fixed semantic hues; saturation blends slightly toward the brand surface. */
+export function deriveFeedbackHex(role: FeedbackRole, surfaceHsl: string | null): string {
+  const token = FEEDBACK_TOKENS[role];
+  const surface = surfaceHsl ? parseHslParts(surfaceHsl) : null;
+  const s = surface
+    ? Math.round(token.s * 0.85 + surface.s * 0.15)
+    : token.s;
+  return hslStringToHex(hslStr(token.h, s, token.l)) ?? FEEDBACK_COLORS[role];
+}
+
+export function derivedFeedbackHexFromBackground(
+  background: string | null | undefined,
+  role: FeedbackRole,
+): string {
+  if (!background) return FEEDBACK_COLORS[role];
+  const fill = parseFill(background);
+  const solid = fillSolidHex(fill);
+  if (!solid) return FEEDBACK_COLORS[role];
+  const surfaceHsl = hexToHsl(solid);
+  return deriveFeedbackHex(role, surfaceHsl);
 }
 
 /** Sidebar nav highlight — prefer accent; ensure fill contrasts with sidebar background. */
@@ -440,8 +576,8 @@ const BRAND_VARS = [
 
 // Fields that accept a gradient fill (JSON string) in addition to hex.
 const GRADIENT_FIELDS: (keyof LibraryBranding)[] = [
-  "background", "card", "sidebar", "navbar",
-  "primary", "accent", "destructive",
+  "background", "navbar",
+  "accent",
   "button_bg", "button_secondary_bg", "button_destructive_bg",
 ];
 
@@ -449,12 +585,8 @@ const GRADIENT_FIELDS: (keyof LibraryBranding)[] = [
 // the paired `--<prefix>-image` variable.
 const GRADIENT_VAR_PREFIX: Partial<Record<keyof LibraryBranding, string>> = {
   background: "background",
-  card: "card",
-  sidebar: "sidebar",
   navbar: "navbar",
-  primary: "primary",
   accent: "accent",
-  destructive: "destructive",
   button_bg: "button-bg",
   button_secondary_bg: "button-secondary-bg",
   button_destructive_bg: "button-destructive-bg",
@@ -494,20 +626,19 @@ export function applyBrandingToDocument(branding: LibraryBranding | null | undef
     Object.values(GRADIENT_VAR_PREFIX).forEach((p) => p && setImage(p, null));
   }
 
-  const primaryHsl = b?.primary ? hexToHsl(b.primary) : null;
   const accentHsl = b?.accent ? hexToHsl(b.accent) : null;
   const bgHsl = b?.background ? hexToHsl(b.background) : null;
-  const fgHsl = b?.foreground
-    ? hexToHsl(b.foreground)
-    : (bgHsl ? contrastFg(bgHsl) : null);
+  const bgFill = parseFill(branding?.background ?? null);
+  const fgHsl = bgHsl ? deriveForeground(bgHsl, bgFill) : null;
+  const primaryHsl = bgHsl ? deriveEmphasisPrimary(bgHsl, bgFill) : null;
 
 
 
-  // Primary + foreground
+  // Primary — contrast-safe emphasis derived from background (not a separate stored color).
   setVar("primary", primaryHsl);
+  setImage("primary", null);
   if (primaryHsl) {
-    const pfg = b?.primary_foreground ? hexToHsl(b.primary_foreground) : contrastFg(primaryHsl);
-    setVar("primary-foreground", pfg);
+    setVar("primary-foreground", contrastFg(primaryHsl));
   } else setVar("primary-foreground", null);
 
   // Accent + foreground
@@ -529,14 +660,22 @@ export function applyBrandingToDocument(branding: LibraryBranding | null | undef
     const dir = fgP.l > bgP.l ? 1 : -1;
     const shiftL = (amt: number) => bgP.l + dir * amt;
 
-    const cardHsl = b?.card ? hexToHsl(b.card) : hslStr(bgP.h, bgP.s, shiftL(4));
+    const cardHsl = bgHsl;
     setVar("card", cardHsl); setVar("card-foreground", fgHsl);
     setVar("popover", cardHsl); setVar("popover-foreground", fgHsl);
 
-    const mutedHsl = b?.muted ? hexToHsl(b.muted) : hslStr(bgP.h, bgP.s, shiftL(7));
+    if (bgFill?.type === "gradient") {
+      const bgImageCss = fillToCss(bgFill);
+      setImage("card", bgImageCss);
+      setImage("sidebar", bgImageCss);
+    } else {
+      setImage("card", null);
+      setImage("sidebar", null);
+    }
+
+    const mutedHsl = hslStr(bgP.h, bgP.s, shiftL(7));
     setVar("muted", mutedHsl);
-    const mfL = fgP.l + (bgP.l - fgP.l) * 0.45;
-    setVar("muted-foreground", hslStr(fgP.h, Math.max(0, fgP.s - 5), mfL));
+    setVar("muted-foreground", deriveMutedForeground(fgHsl, bgHsl, bgFill));
 
     const secondaryHsl = b?.secondary ? hexToHsl(b.secondary) : hslStr(bgP.h, bgP.s, shiftL(6));
     setVar("secondary", secondaryHsl);
@@ -545,28 +684,23 @@ export function applyBrandingToDocument(branding: LibraryBranding | null | undef
       setVar("secondary-foreground", sfg);
     }
 
-    const borderHsl = b?.border ? hexToHsl(b.border) : null;
-    if (borderHsl) {
-      setVar("border", borderHsl);
-      setVar("input", borderHsl);
-      setVar("sidebar-border", borderHsl);
-    } else {
-      setVar("border", `${Math.round(fgP.h)} ${Math.round(fgP.s)}% ${Math.round(fgP.l)}%`, 0.1);
-      setVar("input", `${Math.round(fgP.h)} ${Math.round(fgP.s)}% ${Math.round(fgP.l)}%`, 0.14);
-      setVar("sidebar-border", `${Math.round(fgP.h)} ${Math.round(fgP.s)}% ${Math.round(fgP.l)}%`, 0.1);
-    }
+    // Borders follow main text (foreground) at full opacity.
+    const borderFg = `${Math.round(fgP.h)} ${Math.round(fgP.s)}% ${Math.round(fgP.l)}%`;
+    setVar("border", borderFg);
+    setVar("input", borderFg);
+    setVar("sidebar-border", borderFg);
 
-    // Sidebar mirrors — honor explicit override
-    sidebarHslForNav = b?.sidebar ? hexToHsl(b.sidebar) : hslStr(bgP.h, bgP.s, shiftL(2));
+    // Sidebar mirrors page background
+    sidebarHslForNav = bgHsl;
     setVar("sidebar", sidebarHslForNav);
-    setVar("sidebar-foreground", sidebarHslForNav ? contrastFg(sidebarHslForNav) : fgHsl);
+    setVar("sidebar-foreground", fgHsl);
     setVar("sidebar-accent", mutedHsl);
     setVar("sidebar-accent-foreground", fgHsl);
 
-    // Navbar — honor explicit override, else follows background
     const navbarHsl = b?.navbar ? hexToHsl(b.navbar) : bgHsl;
+    const navbarFill = parseFill(branding?.navbar ?? null);
     setVar("navbar", navbarHsl);
-    setVar("navbar-foreground", navbarHsl ? contrastFg(navbarHsl) : fgHsl);
+    setVar("navbar-foreground", navbarHsl ? deriveForeground(navbarHsl, navbarFill) : fgHsl);
   } else {
     // Clear derived when bg/fg unset
     ["card","card-foreground","popover","popover-foreground","muted","muted-foreground",
@@ -597,9 +731,10 @@ export function applyBrandingToDocument(branding: LibraryBranding | null | undef
     setVar(key, h);
     setVar(`${key}-foreground`, contrastFg(h));
   };
-  applyFeedback("destructive", b?.destructive);
-  applyFeedback("success", b?.success);
-  applyFeedback("warning", b?.warning);
+  applyFeedback("destructive", deriveFeedbackHex("destructive", bgHsl));
+  applyFeedback("success", deriveFeedbackHex("success", bgHsl));
+  applyFeedback("warning", deriveFeedbackHex("warning", bgHsl));
+  setImage("destructive", null);
 
   // CTA band — always derived from foreground/accent. Per-block overrides
   // are applied inline on the block itself, not here.
@@ -695,7 +830,7 @@ export function useApplyBranding(
   useEffect(() => {
     const merged: LibraryBranding = {
       ...branding,
-      primary: branding?.primary || brandColorFallback || undefined,
+      background: branding?.background || brandColorFallback || undefined,
     };
     applyBrandingToDocument(merged, favicon.data ?? null);
     return () => {

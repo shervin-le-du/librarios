@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Settings, LogOut, User as UserIcon } from "lucide-react";
 
 function initials(name: string, email: string) {
@@ -18,11 +19,13 @@ export function UserBubble({
   onSignOut,
   align = "start",
   settingsHref,
+  role,
 }: {
   slug?: string;
   onSignOut: () => void;
   align?: "start" | "center" | "end";
   settingsHref?: string;
+  role?: string;
 }) {
   const [user, setUser] = useState<{ email: string; fullName: string; avatarPath: string | null }>({
     email: "", fullName: "", avatarPath: null,
@@ -73,7 +76,14 @@ export function UserBubble({
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium truncate leading-tight">{label}</div>
-            <div className="text-xs text-muted-foreground truncate">Account</div>
+            {role && (
+              <Badge
+                variant="outline"
+                className="capitalize shrink-0 px-1.5 py-0 text-[10px] font-medium leading-4 h-4 w-fit"
+              >
+                {role}
+              </Badge>
+            )}
           </div>
         </button>
       </PopoverTrigger>

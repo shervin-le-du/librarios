@@ -4,18 +4,32 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RotateCcw, Plus, Minus } from "lucide-react";
+import { RotateCcw, Plus, Minus, ChevronDown } from "lucide-react";
 import { EyedropperButton } from "@/components/EyedropperButton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   fillToCss,
   parseFill,
   serializeFill,
   toEditableFill,
-  GRADIENT_PRESETS,
+  createBrandingGradientFromHex,
+  normalizeBrandingGradient,
+  GRADIENT_SAFE_PRESET_GROUPS,
+  GRADIENT_PRESET_DEFAULTS,
   type Fill,
   type GradientFill,
+  type GradientPreset,
   type GradientStop,
 } from "@/lib/fill";
+import {
+  brandingBlendDepthFromStops,
+  brandingBlendLightness,
+  brandingLightnessBounds,
+  brandingLightnessSide,
+  BRANDING_BLEND_DEPTH_MAX,
+  BRANDING_BLEND_DEPTH_MIN,
+  hexToHslParts,
+} from "@/lib/gradient-safety";
 import { cn } from "@/lib/utils";
 
 /* ── Color conversion helpers ─────────────────────────────────────────── */
@@ -75,6 +89,9 @@ export interface ColorPreset {
 
 export type ColorViewMode = "picker" | "presets" | "manual";
 
+/** Landscape golden rectangle — width : height = φ */
+const PRESET_SWATCH_CLASS = "aspect-[1.618/1] w-full rounded";
+
 interface ColorPickerCardProps {
   label: string;
   /** Stored value: hex ("#rrggbb") for solid, or JSON string for gradient. */
@@ -85,6 +102,10 @@ interface ColorPickerCardProps {
   defaultColor: string;
   /** Show the Solid / Gradient toggle. Default: false (solid-only). */
   allowGradient?: boolean;
+  /** Restrict custom gradient editing (page background). */
+  gradientConstraints?: "branding";
+  /** Live document preview while dragging (no React state update). */
+  onPreviewChange?: (value: string) => void;
 }
 
 /* ── Component ────────────────────────────────────────────────────────── */
@@ -96,7 +117,10 @@ export function ColorPickerCard({
   onChange,
   defaultColor,
   allowGradient = false,
+  gradientConstraints,
+  onPreviewChange,
 }: ColorPickerCardProps) {
+  const brandingGradient = gradientConstraints === "branding";
   const parsed = useMemo(() => parseFill(color), [color]);
   const isGradient = allowGradient && parsed?.type === "gradient";
   const [fillMode, setFillMode] = useState<"solid" | "gradient">(isGradient ? "gradient" : "solid");
@@ -119,7 +143,7 @@ export function ColorPickerCard({
   }, [fillMode, onChange]);
 
   return (
-    <div className="rounded-lg border border-border bg-card p-5 space-y-3">
+    <div className="rounded-lg border border-border bg-card p-5 space-y-3 min-w-0 overflow-hidden">
       <div className="flex items-center justify-between gap-2">
         <Label className="text-sm font-bold">{label}</Label>
         {allowGradient && (
@@ -149,15 +173,17 @@ export function ColorPickerCard({
                 setFillMode("gradient");
                 if (parsed?.type !== "gradient") {
                   const base = parsed?.type === "solid" ? parsed.color : defaultColor;
-                  const grad: GradientFill = {
-                    type: "gradient",
-                    mode: "linear",
-                    angle: 135,
-                    stops: [
-                      { color: base, position: 0 },
-                      { color: defaultColor, position: 100 },
-                    ],
-                  };
+                  const grad = brandingGradient
+                    ? createBrandingGradientFromHex(base)
+                    : {
+                        type: "gradient" as const,
+                        mode: "linear" as const,
+                        angle: 135,
+                        stops: [
+                          { color: base, position: 0 },
+                          { color: defaultColor, position: 100 },
+                        ],
+                      };
                   onChange(serializeFill(grad));
                 }
               }}
@@ -178,19 +204,31 @@ export function ColorPickerCard({
         <GradientEditor
           fill={
             parsed?.type === "gradient"
-              ? parsed
-              : {
-                  type: "gradient",
-                  mode: "linear",
-                  angle: 135,
-                  stops: [
-                    { color: parsed?.type === "solid" ? parsed.color : defaultColor, position: 0 },
-                    { color: defaultColor, position: 100 },
-                  ],
-                }
+              ? (brandingGradient ? normalizeBrandingGradient(parsed) : parsed)
+              : brandingGradient
+                ? createBrandingGradientFromHex(
+                    parsed?.type === "solid" ? parsed.color : defaultColor,
+                  )
+                : {
+                    type: "gradient",
+                    mode: "linear",
+                    angle: 135,
+                    stops: [
+                      { color: parsed?.type === "solid" ? parsed.color : defaultColor, position: 0 },
+                      { color: defaultColor, position: 100 },
+                    ],
+                  }
           }
+          brandingConstraints={brandingGradient}
           onBindEyedropper={bindEyedropper}
-          onChange={(f) => onChange(serializeFill(f))}
+          onChange={(f) =>
+            onChange(serializeFill(brandingGradient ? normalizeBrandingGradient(f) : f))
+          }
+          onPreviewChange={
+            brandingGradient && onPreviewChange
+              ? (f) => onPreviewChange(serializeFill(normalizeBrandingGradient(f)))
+              : undefined
+          }
         />
 
       )}
@@ -243,7 +281,7 @@ function SolidEditor({
       </TabsContent>
 
       <TabsContent value="presets" className="pt-2">
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {presets.map((preset) => (
             <button
               key={preset.name}
@@ -253,7 +291,7 @@ function SolidEditor({
               type="button"
             >
               <div
-                className={`size-8 rounded border-2 transition-transform group-hover:scale-110 ${
+                className={`${PRESET_SWATCH_CLASS} border-2 transition-transform group-hover:scale-105 ${
                   hex.toLowerCase() === preset.hex.toLowerCase() ? "border-primary ring-2 ring-primary/30" : "border-border"
                 }`}
                 style={{ backgroundColor: preset.hex }}
@@ -304,269 +342,827 @@ function SolidEditor({
 
 /* ── Gradient editor ──────────────────────────────────────────────────── */
 
+type BrandingCommit = boolean | "sample";
+
+/** Throttle expensive parent commits while keeping a trailing flush on release. */
+function useSampledCommit(fn: () => void, intervalMs = 120) {
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+  const lastRunRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dirtyRef = useRef(false);
+
+  const sample = useCallback(() => {
+    dirtyRef.current = true;
+    const now = Date.now();
+    const elapsed = now - lastRunRef.current;
+    if (elapsed >= intervalMs) {
+      lastRunRef.current = now;
+      dirtyRef.current = false;
+      fnRef.current();
+      return;
+    }
+    if (!timerRef.current) {
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        if (!dirtyRef.current) return;
+        lastRunRef.current = Date.now();
+        dirtyRef.current = false;
+        fnRef.current();
+      }, intervalMs - elapsed);
+    }
+  }, [intervalMs]);
+
+  const flush = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    dirtyRef.current = false;
+    lastRunRef.current = Date.now();
+    fnRef.current();
+  }, []);
+
+  const cancel = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    dirtyRef.current = false;
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
+
+  return { sample, flush, cancel };
+}
+
+/** Range input with local live value; optional sampled commits while dragging. */
+function LiveRangeSlider({
+  value,
+  min,
+  max,
+  onLiveChange,
+  onSample,
+  onCommit,
+  onInteractionStart,
+  onInteractionEnd,
+  className,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onLiveChange: (v: number) => void;
+  onSample?: () => void;
+  onCommit: (v: number) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
+  className?: string;
+}) {
+  const draggingRef = useRef(false);
+  const valueRef = useRef(value);
+  const onCommitRef = useRef(onCommit);
+  const onInteractionEndRef = useRef(onInteractionEnd);
+  const [local, setLocal] = useState(value);
+
+  valueRef.current = value;
+  onCommitRef.current = onCommit;
+  onInteractionEndRef.current = onInteractionEnd;
+
+  useEffect(() => {
+    if (!draggingRef.current) setLocal(value);
+  }, [value]);
+
+  useEffect(() => {
+    const end = () => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      onCommitRef.current(valueRef.current);
+      onInteractionEndRef.current?.();
+    };
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    return () => {
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+  }, []);
+
+  return (
+    <input
+      type="range"
+      min={min}
+      max={max}
+      value={local}
+      className={className}
+      onPointerDown={() => {
+        draggingRef.current = true;
+        onInteractionStart?.();
+      }}
+      onChange={(e) => {
+        const v = Number(e.target.value);
+        valueRef.current = v;
+        setLocal(v);
+        onLiveChange(v);
+        if (draggingRef.current) onSample?.();
+      }}
+    />
+  );
+}
+
 function GradientEditor({
   fill,
   onChange,
+  onPreviewChange,
   onBindEyedropper,
+  brandingConstraints = false,
 }: {
   fill: GradientFill;
   onChange: (f: GradientFill) => void;
+  onPreviewChange?: (f: GradientFill) => void;
   onBindEyedropper?: (pick: (hex: string) => void) => void;
+  brandingConstraints?: boolean;
 }) {
   const [selected, setSelected] = useState(0);
+  const [viewMode, setViewMode] = useState<ColorViewMode>("picker");
+  const [morePresetsOpen, setMorePresetsOpen] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
-  const stops = fill.stops;
-  const activeStop = stops[Math.min(selected, stops.length - 1)] ?? stops[0];
-  const activeHsl = hexToHsl(activeStop.color);
+  const [draftFill, setDraftFill] = useState(() =>
+    brandingConstraints ? normalizeBrandingGradient(fill) : fill,
+  );
+  const draftRef = useRef(draftFill);
+  draftRef.current = draftFill;
+  const interactingRef = useRef(false);
 
-  const previewCss = fillToCss(fill);
+  useEffect(() => {
+    if (!brandingConstraints || interactingRef.current) return;
+    const next = normalizeBrandingGradient(fill);
+    draftRef.current = next;
+    setDraftFill(next);
+  }, [fill, brandingConstraints]);
+
+  const workingFill = brandingConstraints ? draftFill : fill;
+  const stops = brandingConstraints ? workingFill.stops : fill.stops;
+  const activeFill = brandingConstraints ? { ...workingFill, mode: "linear" as const } : fill;
+  const activeStop = stops[Math.min(selected, stops.length - 1)] ?? stops[0];
+  const baseStop = stops[0];
+  const pickerHsl = brandingConstraints ? hexToHsl(baseStop.color) : hexToHsl(activeStop.color);
+  const blendDepth = brandingConstraints ? brandingBlendDepthFromStops(stops) : 0;
+
+  const previewCss = fillToCss(activeFill);
+
+  const previewDraft = useCallback(() => {
+    if (!brandingConstraints || !onPreviewChange) return;
+    onPreviewChange(normalizeBrandingGradient(draftRef.current));
+  }, [brandingConstraints, onPreviewChange]);
+
+  const commitDraft = useCallback(() => {
+    if (!brandingConstraints) return;
+    const next = normalizeBrandingGradient(draftRef.current);
+    draftRef.current = next;
+    setDraftFill(next);
+    onChange(next);
+  }, [brandingConstraints, onChange]);
+
+  const { sample: samplePreview, cancel: cancelPreview } = useSampledCommit(previewDraft, 120);
+
+  const startInteraction = useCallback(() => {
+    interactingRef.current = true;
+  }, []);
+
+  const endInteraction = useCallback(() => {
+    interactingRef.current = false;
+    if (!brandingConstraints) return;
+    cancelPreview();
+    commitDraft();
+  }, [brandingConstraints, cancelPreview, commitDraft]);
+
+  const applyFill = (next: GradientFill, commit: BrandingCommit = true) => {
+    const normalized = brandingConstraints ? normalizeBrandingGradient(next) : next;
+    if (brandingConstraints) {
+      draftRef.current = normalized;
+      setDraftFill(normalized);
+      if (commit === false) return;
+      if (commit === "sample") {
+        samplePreview();
+        return;
+      }
+    }
+    onChange(normalized);
+  };
+
+  const emitChange = (next: GradientFill) => applyFill(next, true);
+
+  const setStops = (nextStops: GradientStop[], commit: BrandingCommit = true) => {
+    const sorted = [...nextStops].sort((a, b) => a.position - b.position);
+    applyFill({ ...workingFill, stops: sorted }, commit);
+  };
+
+  const updateStop = (idx: number, patch: Partial<GradientStop>, commit: BrandingCommit = true) => {
+    const next = stops.map((s, i) => (i === idx ? { ...s, ...patch } : s));
+    setStops(next, commit);
+  };
+
+  const updateBaseColor = (
+    hsl: { h: number; s: number; l: number },
+    commit: BrandingCommit = true,
+  ) => {
+    const side = brandingLightnessSide(hsl.l);
+    const l0 = Math.max(
+      brandingLightnessBounds(side).min,
+      Math.min(brandingLightnessBounds(side).max, hsl.l),
+    );
+    const anchor = { h: hsl.h, s: hsl.s, l: l0 };
+    const depth = brandingBlendDepthFromStops(stops);
+    const l1 = brandingBlendLightness(l0, depth);
+    const end = stops[1] ?? { color: stops[0].color, position: 100 };
+    applyFill({
+      ...workingFill,
+      mode: "linear",
+      stops: [
+        { ...stops[0], color: hslToHex(anchor) },
+        { ...end, color: hslToHex({ h: anchor.h, s: anchor.s, l: l1 }) },
+      ],
+    }, commit);
+  };
+
+  const updateBlendDepth = (depth: number, commit: BrandingCommit = true) => {
+    const anchor = hexToHslParts(stops[0].color);
+    if (!anchor) return;
+    const side = brandingLightnessSide(anchor.l);
+    const l0 = Math.max(
+      brandingLightnessBounds(side).min,
+      Math.min(brandingLightnessBounds(side).max, anchor.l),
+    );
+    const l1 = brandingBlendLightness(l0, depth);
+    const end = stops[1] ?? { color: stops[0].color, position: 100 };
+    applyFill({
+      ...workingFill,
+      mode: "linear",
+      stops: [
+        stops[0],
+        { ...end, color: hslToHex({ h: anchor.h, s: anchor.s, l: l1 }) },
+      ],
+    }, commit);
+  };
 
   useEffect(() => {
     onBindEyedropper?.((hex) => {
-      onChange({
-        ...fill,
-        stops: fill.stops.map((s, i) => (i === selected ? { ...s, color: hex } : s)),
+      if (brandingConstraints) {
+        const picked = hexToHslParts(hex);
+        if (!picked) return;
+        const side = brandingLightnessSide(picked.l);
+        const l0 = Math.max(
+          brandingLightnessBounds(side).min,
+          Math.min(brandingLightnessBounds(side).max, picked.l),
+        );
+        updateBaseColor({ h: picked.h, s: picked.s, l: l0 }, true);
+        return;
+      }
+      emitChange({
+        ...workingFill,
+        stops: stops.map((s, i) => (i === selected ? { ...s, color: hex } : s)),
       });
     });
-  }, [fill, selected, onChange, onBindEyedropper]);
+  }, [workingFill, selected, onBindEyedropper, brandingConstraints, stops]);
 
-  const setStops = (nextStops: GradientStop[]) => {
-    const sorted = [...nextStops].sort((a, b) => a.position - b.position);
-    onChange({ ...fill, stops: sorted });
-  };
-
-  const updateStop = (idx: number, patch: Partial<GradientStop>) => {
-    const next = stops.map((s, i) => (i === idx ? { ...s, ...patch } : s));
-    setStops(next);
+  const updateBrandingStopPosition = (idx: number, position: number, commit: BrandingCommit = true) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(position)));
+    if (stops.length !== 2) {
+      updateStop(idx, { position: clamped }, commit);
+      return;
+    }
+    const otherPos = stops[idx === 0 ? 1 : 0].position;
+    const minGap = 4;
+    const nextPos =
+      idx === 0
+        ? Math.min(clamped, otherPos - minGap)
+        : Math.max(clamped, otherPos + minGap);
+    updateStop(idx, { position: Math.max(0, Math.min(100, nextPos)) }, commit);
   };
 
   const addStopAt = (position: number) => {
+    if (brandingConstraints) return;
     const color = interpolateColor(stops, position);
     const next = [...stops, { color, position }];
-    onChange({ ...fill, stops: next.sort((a, b) => a.position - b.position) });
-    // Select the freshly added stop
-    setSelected(next.sort((a, b) => a.position - b.position).findIndex((s) => s.position === position && s.color === color));
+    emitChange({ ...workingFill, stops: next.sort((a, b) => a.position - b.position) });
+    setSelected(
+      next.sort((a, b) => a.position - b.position)
+        .findIndex((s) => s.position === position && s.color === color),
+    );
   };
 
   const removeStop = (idx: number) => {
-    if (stops.length <= 2) return;
+    if (brandingConstraints || stops.length <= 2) return;
     const next = stops.filter((_, i) => i !== idx);
-    onChange({ ...fill, stops: next });
+    emitChange({ ...workingFill, stops: next });
     setSelected(Math.max(0, idx - 1));
   };
 
   const onTrackPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!trackRef.current) return;
-    if ((e.target as HTMLElement).dataset.stopHandle) return; // stop handle handles its own
+    if ((e.target as HTMLElement).closest("[data-stop-handle]")) return;
     const rect = trackRef.current.getBoundingClientRect();
-    const pos = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-    addStopAt(Math.max(0, Math.min(100, pos)));
+    const pos = Math.max(0, Math.min(100, Math.round(((e.clientX - rect.left) / rect.width) * 100)));
+    if (brandingConstraints) {
+      setSelected(0);
+      updateBrandingStopPosition(0, pos, true);
+      return;
+    }
+    addStopAt(pos);
+  };
+
+  const applyPreset = (preset: GradientPreset) => {
+    setSelected(0);
+    emitChange(preset.fill);
+  };
+
+  const setBaseHex = (hex: string) => {
+    if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return;
+    if (brandingConstraints) {
+      const parts = hexToHslParts(hex);
+      if (parts) updateBaseColor(parts, true);
+      return;
+    }
+    updateStop(0, { color: hex });
+  };
+
+  const setBlendEndHex = (hex: string) => {
+    if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return;
+    const end = stops[1] ?? { color: hex, position: 100 };
+    emitChange({
+      ...workingFill,
+      stops: [stops[0], { ...end, color: hex }],
+    });
   };
 
   return (
-    <div className="space-y-3">
-      {/* Preview bar */}
-      <div
-        className="h-12 rounded-lg border-2 border-border"
-        style={{ background: previewCss }}
-      />
+    <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ColorViewMode)} className="w-full min-w-0">
+      <TabsList className="grid w-full grid-cols-3">
+        <TabsTrigger value="picker">Picker</TabsTrigger>
+        <TabsTrigger value="presets">Presets</TabsTrigger>
+        <TabsTrigger value="manual">Manual</TabsTrigger>
+      </TabsList>
 
-      {/* Stop track */}
-      <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <Label className="text-xs">Stops</Label>
-          <div className="flex gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2"
-              disabled={stops.length <= 2}
-              onClick={() => removeStop(selected)}
-              title="Remove selected stop"
-            >
-              <Minus className="size-3" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2"
-              onClick={() => addStopAt(50)}
-              title="Add stop at 50%"
-            >
-              <Plus className="size-3" />
-            </Button>
+      <TabsContent value="picker" className="space-y-3 min-w-0 pt-2">
+        {/* Base color */}
+        <div className="space-y-2">
+          {brandingConstraints && (
+            <>
+              <Label className="text-xs">Base color</Label>
+              <p className="text-[10px] text-muted-foreground">
+                Pick the base color below.
+              </p>
+            </>
+          )}
+          <div
+            className="rounded-md border border-border bg-background/50 p-2 flex justify-center"
+            onPointerDown={() => {
+              if (!brandingConstraints) return;
+              startInteraction();
+              const end = () => {
+                endInteraction();
+                window.removeEventListener("pointerup", end);
+                window.removeEventListener("pointercancel", end);
+              };
+              window.addEventListener("pointerup", end);
+              window.addEventListener("pointercancel", end);
+            }}
+          >
+            <HslColorPicker
+              color={pickerHsl}
+              onChange={(c) =>
+                brandingConstraints
+                  ? updateBaseColor(c, "sample")
+                  : updateStop(selected, { color: hslToHex(c) })
+              }
+            />
           </div>
         </div>
-        <div
-          ref={trackRef}
-          onPointerDown={onTrackPointerDown}
-          className="relative h-8 rounded-md border border-border cursor-crosshair"
-          style={{ background: previewCss }}
-        >
-          {stops.map((s, i) => (
-            <StopHandle
-              key={i}
-              index={i}
-              selected={i === selected}
-              stop={s}
-              onSelect={() => setSelected(i)}
-              onDrag={(nextPos, drop) => {
-                if (drop) removeStop(i);
-                else updateStop(i, { position: nextPos });
-              }}
-              canRemove={stops.length > 2}
-            />
-          ))}
-        </div>
-        <p className="text-[10px] text-muted-foreground">
-          Click the track to add. Drag a stop up/down to remove (min 2).
-        </p>
-      </div>
 
-      {/* Color picker for selected stop */}
-      <div className="rounded-md border border-border bg-background/50 p-2 flex justify-center">
-        <HslColorPicker color={activeHsl} onChange={(c) => updateStop(selected, { color: hslToHex(c) })} />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Input
-          value={activeStop.color}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (/^#[0-9A-Fa-f]{6}$/.test(v)) updateStop(selected, { color: v });
-          }}
-          placeholder="#000000"
-          className="font-mono text-xs h-8"
-        />
-        <Input
-          type="number"
-          min={0}
-          max={100}
-          value={activeStop.position}
-          onChange={(e) => updateStop(selected, { position: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })}
-          className="font-mono text-xs h-8"
-        />
-      </div>
-
-      {/* Mode + angle */}
-      <div className="flex items-center gap-2">
-        <div className="inline-flex rounded-md border border-border p-0.5 text-xs">
-          <button
-            type="button"
-            className={cn(
-              "px-2 py-1 rounded-sm",
-              fill.mode === "linear" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+        {/* Stops */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Stops</Label>
+            {!brandingConstraints && (
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  disabled={stops.length <= 2}
+                  onClick={() => removeStop(selected)}
+                  title="Remove selected stop"
+                >
+                  <Minus className="size-3" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => addStopAt(50)}
+                  title="Add stop at 50%"
+                >
+                  <Plus className="size-3" />
+                </Button>
+              </div>
             )}
-            onClick={() => onChange({ ...fill, mode: "linear" })}
-          >
-            Linear
-          </button>
-          <button
-            type="button"
+          </div>
+          {brandingConstraints && (
+            <p className="text-[10px] text-muted-foreground">
+              Drag stops to set where the blend starts and ends.
+            </p>
+          )}
+          <div
+            ref={trackRef}
+            onPointerDown={onTrackPointerDown}
             className={cn(
-              "px-2 py-1 rounded-sm",
-              fill.mode === "radial" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+              "relative h-8 rounded-md border border-border touch-none",
+              brandingConstraints ? "" : "cursor-crosshair",
             )}
-            onClick={() => onChange({ ...fill, mode: "radial" })}
+            style={{ background: previewCss }}
           >
-            Radial
-          </button>
+            {stops.map((s, i) => (
+              <StopHandle
+                key={i}
+                trackRef={trackRef}
+                index={i}
+                selected={i === selected}
+                stop={s}
+                label={brandingConstraints ? (i === 0 ? "Base color" : "Blend end") : `Stop ${i + 1}`}
+                onSelect={() => setSelected(i)}
+                onDrag={(nextPos, drop) => {
+                  if (drop) removeStop(i);
+                  else if (brandingConstraints) updateBrandingStopPosition(i, nextPos, "sample");
+                  else updateStop(i, { position: nextPos });
+                }}
+                onDragStart={brandingConstraints ? startInteraction : undefined}
+                onDragEnd={brandingConstraints ? endInteraction : undefined}
+                canRemove={!brandingConstraints && stops.length > 2}
+              />
+            ))}
+          </div>
+          {!brandingConstraints && (
+            <p className="text-[10px] text-muted-foreground">
+              Click the track to add. Drag a stop up/down to remove (min 2).
+            </p>
+          )}
         </div>
-        {fill.mode === "linear" && (
-          <div className="flex-1 flex items-center gap-2">
-            <input
-              type="range"
-              min={0}
-              max={360}
-              value={fill.angle}
-              onChange={(e) => onChange({ ...fill, angle: Number(e.target.value) })}
-              className="flex-1 accent-foreground"
-            />
-            <div className="w-10 text-right text-xs tabular-nums text-muted-foreground">{Math.round(fill.angle)}°</div>
+
+        {/* Blend depth */}
+        {brandingConstraints && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Blend depth</Label>
+            <p className="text-[10px] text-muted-foreground">
+              How strong the fade is between stops.
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="w-10 shrink-0 text-[10px] text-muted-foreground">Subtle</span>
+              <LiveRangeSlider
+                min={BRANDING_BLEND_DEPTH_MIN}
+                max={BRANDING_BLEND_DEPTH_MAX}
+                value={blendDepth}
+                onLiveChange={(d) => updateBlendDepth(d, false)}
+                onSample={onPreviewChange ? samplePreview : undefined}
+                onCommit={(d) => updateBlendDepth(d, false)}
+                onInteractionStart={startInteraction}
+                onInteractionEnd={endInteraction}
+                className="min-w-0 flex-1 w-full accent-foreground"
+              />
+              <span className="w-10 shrink-0 text-right text-[10px] text-muted-foreground">Strong</span>
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Presets */}
-      <div>
-        <Label className="text-xs mb-1.5 block">Presets</Label>
-        <div className="grid grid-cols-6 gap-1.5">
-          {GRADIENT_PRESETS.map((p) => (
-            <button
-              key={p.name}
-              type="button"
-              title={p.name}
-              onClick={() => {
-                setSelected(0);
-                onChange({ ...p.fill });
-              }}
-              className="h-8 rounded border border-border transition-transform hover:scale-105"
-              style={{ background: fillToCss(p.fill) }}
-            />
-          ))}
+        {/* Angle */}
+        <div className="space-y-2 min-w-0">
+          {!brandingConstraints && (
+            <div className="inline-flex rounded-md border border-border p-0.5 text-xs">
+              <button
+                type="button"
+                className={cn(
+                  "px-2 py-1 rounded-sm",
+                  fill.mode === "linear" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => emitChange({ ...fill, mode: "linear" })}
+              >
+                Linear
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "px-2 py-1 rounded-sm",
+                  fill.mode === "radial" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => emitChange({ ...fill, mode: "radial" })}
+              >
+                Radial
+              </button>
+            </div>
+          )}
+          {(brandingConstraints || workingFill.mode === "linear") && (
+            <div className="space-y-1">
+              {brandingConstraints && <Label className="text-xs">Angle</Label>}
+              <div className="flex items-center gap-2 min-w-0 w-full">
+                {brandingConstraints ? (
+                  <LiveRangeSlider
+                    min={0}
+                    max={360}
+                    value={workingFill.angle}
+                    onLiveChange={(v) => applyFill({ ...workingFill, angle: v }, false)}
+                    onSample={onPreviewChange ? samplePreview : undefined}
+                    onCommit={(v) => applyFill({ ...workingFill, angle: v }, false)}
+                    onInteractionStart={startInteraction}
+                    onInteractionEnd={endInteraction}
+                    className="min-w-0 flex-1 w-full accent-foreground"
+                  />
+                ) : (
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    value={fill.angle}
+                    onChange={(e) => emitChange({ ...fill, angle: Number(e.target.value) })}
+                    className="min-w-0 flex-1 w-full accent-foreground"
+                  />
+                )}
+                <div className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                  {Math.round(workingFill.angle)}°
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
-    </div>
+      </TabsContent>
+
+      <TabsContent value="presets" className="pt-2">
+        <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            {GRADIENT_PRESET_DEFAULTS.map((p) => (
+              <button
+                key={p.name}
+                type="button"
+                title={p.name}
+                onClick={() => applyPreset(p)}
+                className={`${PRESET_SWATCH_CLASS} border border-border transition-transform hover:scale-105`}
+                style={{ background: fillToCss(p.fill) }}
+              />
+            ))}
+          </div>
+
+          <Collapsible open={morePresetsOpen} onOpenChange={setMorePresetsOpen}>
+            <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md px-1 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <span>Browse more</span>
+              <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", morePresetsOpen && "rotate-180")} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2 space-y-3 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
+              {GRADIENT_SAFE_PRESET_GROUPS.map((group) => (
+                <div key={group.label}>
+                  <p className="text-[10px] font-medium text-muted-foreground mb-1.5">{group.label}</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {group.presets.map((p) => (
+                      <button
+                        key={`${group.label}-${p.name}`}
+                        type="button"
+                        title={p.name}
+                        onClick={() => applyPreset(p)}
+                        className={`${PRESET_SWATCH_CLASS} border border-border transition-transform hover:scale-105`}
+                        style={{ background: fillToCss(p.fill) }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="manual" className="space-y-4 pt-2">
+        {brandingConstraints ? (
+          <>
+            <div className="space-y-2">
+              <Label className="text-xs">Base</Label>
+              <Input
+                value={baseStop.color}
+                onChange={(e) => setBaseHex(e.target.value)}
+                placeholder="#000000"
+                className="font-mono text-xs h-8"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Blend end</Label>
+              <Input
+                value={stops[1]?.color ?? baseStop.color}
+                onChange={(e) => setBlendEndHex(e.target.value)}
+                placeholder="#000000"
+                className="font-mono text-xs h-8"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Depth</Label>
+              <Input
+                type="number"
+                min={BRANDING_BLEND_DEPTH_MIN}
+                max={BRANDING_BLEND_DEPTH_MAX}
+                value={blendDepth}
+                onChange={(e) => {
+                  const d = Math.max(
+                    BRANDING_BLEND_DEPTH_MIN,
+                    Math.min(BRANDING_BLEND_DEPTH_MAX, Number(e.target.value) || BRANDING_BLEND_DEPTH_MIN),
+                  );
+                  updateBlendDepth(d, true);
+                }}
+                className="font-mono text-xs h-8"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Stops</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={stops[0].position}
+                  onChange={(e) => updateBrandingStopPosition(0, Number(e.target.value) || 0, true)}
+                  className="font-mono text-xs h-8"
+                  placeholder="Start %"
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={stops[1]?.position ?? 100}
+                  onChange={(e) => updateBrandingStopPosition(1, Number(e.target.value) || 100, true)}
+                  className="font-mono text-xs h-8"
+                  placeholder="End %"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Angle</Label>
+              <Input
+                type="number"
+                min={0}
+                max={360}
+                value={Math.round(workingFill.angle)}
+                onChange={(e) => {
+                  const angle = Math.max(0, Math.min(360, Number(e.target.value) || 0));
+                  applyFill({ ...workingFill, angle }, true);
+                }}
+                className="font-mono text-xs h-8"
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="inline-flex rounded-md border border-border p-0.5 text-xs">
+              <button
+                type="button"
+                className={cn(
+                  "px-2 py-1 rounded-sm",
+                  fill.mode === "linear" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => emitChange({ ...fill, mode: "linear" })}
+              >
+                Linear
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "px-2 py-1 rounded-sm",
+                  fill.mode === "radial" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => emitChange({ ...fill, mode: "radial" })}
+              >
+                Radial
+              </button>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Angle</Label>
+              <Input
+                type="number"
+                min={0}
+                max={360}
+                value={Math.round(fill.angle)}
+                onChange={(e) => {
+                  const angle = Math.max(0, Math.min(360, Number(e.target.value) || 0));
+                  emitChange({ ...fill, angle });
+                }}
+                className="font-mono text-xs h-8"
+              />
+            </div>
+            <div className="space-y-3">
+              <Label className="text-xs">Stops</Label>
+              {stops.map((s, i) => (
+                <div key={i} className="grid grid-cols-[1fr_4.5rem] gap-2">
+                  <Input
+                    value={s.color}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!/^#[0-9A-Fa-f]{6}$/.test(v)) return;
+                      updateStop(i, { color: v });
+                    }}
+                    placeholder="#000000"
+                    className="font-mono text-xs h-8"
+                  />
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={s.position}
+                    onChange={(e) => updateStop(i, { position: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })}
+                    className="font-mono text-xs h-8"
+                  />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </TabsContent>
+    </Tabs>
   );
 }
 
 function StopHandle({
+  trackRef,
   index,
   selected,
   stop,
+  label,
   onSelect,
   onDrag,
+  onDragStart,
+  onDragEnd,
   canRemove,
 }: {
+  trackRef: React.RefObject<HTMLDivElement | null>;
   index: number;
   selected: boolean;
   stop: GradientStop;
+  label: string;
   onSelect: () => void;
   onDrag: (nextPosition: number, drop: boolean) => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
   canRemove: boolean;
 }) {
-  const ref = useRef<HTMLButtonElement>(null);
-  const draggingRef = useRef<{ startX: number; startY: number; parent: DOMRect } | null>(null);
+  const onDragRef = useRef(onDrag);
+  const onDragEndRef = useRef(onDragEnd);
+  onDragRef.current = onDrag;
+  onDragEndRef.current = onDragEnd;
 
   const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
     e.stopPropagation();
     onSelect();
-    const parent = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
-    draggingRef.current = { startX: e.clientX, startY: e.clientY, parent };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-  const onPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
-    const d = draggingRef.current;
-    if (!d) return;
-    const pos = Math.round(((e.clientX - d.parent.left) / d.parent.width) * 100);
-    onDrag(Math.max(0, Math.min(100, pos)), false);
-  };
-  const onPointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
-    const d = draggingRef.current;
-    if (!d) return;
-    const dy = Math.abs(e.clientY - d.startY);
-    draggingRef.current = null;
-    if (canRemove && dy > 30) {
-      onDrag(stop.position, true);
-    }
+    onDragStart?.();
+    const startY = e.clientY;
+    const pointerId = e.pointerId;
+
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      const parent = trackRef.current?.getBoundingClientRect();
+      if (!parent) return;
+      const pos = Math.round(((ev.clientX - parent.left) / parent.width) * 100);
+      onDragRef.current(Math.max(0, Math.min(100, pos)), false);
+    };
+
+    const onUp = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      const dy = Math.abs(ev.clientY - startY);
+      if (canRemove && dy > 30) onDragRef.current(stop.position, true);
+      else onDragEndRef.current?.();
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    e.currentTarget.setPointerCapture(pointerId);
   };
 
   return (
     <button
-      ref={ref}
       type="button"
       data-stop-handle="1"
       onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
       onClick={(e) => e.stopPropagation()}
       className={cn(
-        "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-4 rounded-full border-2 shadow-sm cursor-grab active:cursor-grabbing",
+        "absolute top-1/2 z-10 -translate-y-1/2 -translate-x-1/2 size-4 rounded-full border-2 shadow-sm touch-none cursor-grab active:cursor-grabbing",
         selected ? "border-foreground ring-2 ring-foreground/30" : "border-white",
       )}
       style={{ left: `${stop.position}%`, background: stop.color }}
-      aria-label={`Stop ${index + 1}`}
+      title={label}
+      aria-label={label}
     />
   );
 }

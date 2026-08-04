@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -14,18 +14,9 @@ import {
   BUTTON_SHAPE_RADIUS,
   migrateLegacyButtonShape,
   useSignedBrandingAsset,
-  COLOR_PRIMARY_PRESETS,
   COLOR_ACCENT_PRESETS,
   COLOR_BACKGROUND_PRESETS,
-  COLOR_FOREGROUND_PRESETS,
-  COLOR_CARD_PRESETS,
-  COLOR_MUTED_PRESETS,
-  COLOR_BORDER_PRESETS,
-  COLOR_SIDEBAR_PRESETS,
   COLOR_NAVBAR_PRESETS,
-  COLOR_DESTRUCTIVE_PRESETS,
-  COLOR_SUCCESS_PRESETS,
-  COLOR_WARNING_PRESETS,
   COLOR_BUTTON_BG_PRESETS,
   COLOR_BUTTON_FG_PRESETS,
   COLOR_BUTTON_SECONDARY_BG_PRESETS,
@@ -33,6 +24,9 @@ import {
   COLOR_BUTTON_DESTRUCTIVE_BG_PRESETS,
   COLOR_BUTTON_DESTRUCTIVE_FG_PRESETS,
   applyBrandingToDocument,
+  derivedEmphasisPrimaryHex,
+  derivedFeedbackHexFromBackground,
+  FEEDBACK_COLORS,
   type ButtonShape,
   type LibraryBranding,
 } from "@/lib/branding";
@@ -131,7 +125,6 @@ export function LibraryBrandingSection() {
       {tab === "colors" && (
         <ColorsTab
           branding={branding}
-          fallbackPrimary={lib.data.brand_color ?? undefined}
           onSave={(patch) => save.mutate(patch)}
           isSaving={save.isPending}
         />
@@ -224,7 +217,10 @@ function LogosTab({
     onSave({ [kind]: null } as Partial<LibraryBranding>);
   }
 
-  const brandPrimary = branding.primary || "#0a2540";
+  const brandPrimary =
+    derivedEmphasisPrimaryHex(branding.background)
+    ?? branding.primary
+    ?? "#0a2540";
 
   return (
     <div className="space-y-6">
@@ -386,33 +382,15 @@ function LogoRow({
 
 /* ---------------- Colors ---------------- */
 
-type BrandField = "primary" | "accent";
-
-type AdvancedColorField = "card" | "muted" | "border" | "sidebar" | "navbar";
-
-type FeedbackField = "destructive" | "success" | "warning";
+type BrandField = "accent";
 
 const BRAND_DEFAULTS: Record<BrandField, string> = {
-  primary: "#0a2540",
   accent: "#f59e0b",
 };
 
-const ADVANCED_DEFAULTS: Record<AdvancedColorField, string> = {
-  card: "#ffffff",
-  muted: "#f1efe9",
-  border: "#e5e7eb",
-  sidebar: "#ffffff",
-  navbar: "#ffffff",
-};
+const NAVBAR_DEFAULT = "#ffffff";
 
 const BACKGROUND_DEFAULT = "#ffffff";
-const FOREGROUND_DEFAULT = "#0f172a";
-
-const FEEDBACK_DEFAULTS: Record<FeedbackField, string> = {
-  destructive: "#dc2626",
-  success: "#059669",
-  warning: "#f59e0b",
-};
 
 /** Omit picker placeholder defaults so applyBrandingToDocument can derive from background. */
 function optionalBrandingColor(
@@ -425,84 +403,13 @@ function optionalBrandingColor(
   return undefined;
 }
 
-function ColorsTab({
-  branding, fallbackPrimary, onSave, isSaving,
-}: {
-  branding: LibraryBranding;
-  fallbackPrimary?: string;
-  onSave: (patch: Partial<LibraryBranding>) => void;
-  isSaving: boolean;
+/** Stable layout wrapper — must not be defined inside ColorsTab or children remount on every color change. */
+function ColorsTabSection({ title, description, children }: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
 }) {
-  const brandDefaults = useMemo<Record<BrandField, string>>(
-    () => ({ ...BRAND_DEFAULTS, primary: fallbackPrimary || BRAND_DEFAULTS.primary }),
-    [fallbackPrimary],
-  );
-
-  const [brand, setBrand] = useState<Record<BrandField, string>>(() => ({
-    primary: branding.primary ?? brandDefaults.primary,
-    accent: branding.accent ?? brandDefaults.accent,
-  }));
-  const [background, setBackground] = useState(branding.background ?? BACKGROUND_DEFAULT);
-  const [feedback, setFeedback] = useState<Record<FeedbackField, string>>(() => ({
-    destructive: branding.destructive ?? FEEDBACK_DEFAULTS.destructive,
-    success: branding.success ?? FEEDBACK_DEFAULTS.success,
-    warning: branding.warning ?? FEEDBACK_DEFAULTS.warning,
-  }));
-  const [advanced, setAdvanced] = useState({
-    card: branding.card ?? ADVANCED_DEFAULTS.card,
-    muted: branding.muted ?? ADVANCED_DEFAULTS.muted,
-    border: branding.border ?? ADVANCED_DEFAULTS.border,
-    sidebar: branding.sidebar ?? ADVANCED_DEFAULTS.sidebar,
-    navbar: branding.navbar ?? ADVANCED_DEFAULTS.navbar,
-    foreground: branding.foreground ?? FOREGROUND_DEFAULT,
-  });
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-
-  useEffect(() => {
-    setBrand({
-      primary: branding.primary ?? brandDefaults.primary,
-      accent: branding.accent ?? brandDefaults.accent,
-    });
-    setBackground(branding.background ?? BACKGROUND_DEFAULT);
-    setFeedback({
-      destructive: branding.destructive ?? FEEDBACK_DEFAULTS.destructive,
-      success: branding.success ?? FEEDBACK_DEFAULTS.success,
-      warning: branding.warning ?? FEEDBACK_DEFAULTS.warning,
-    });
-    setAdvanced({
-      card: branding.card ?? ADVANCED_DEFAULTS.card,
-      muted: branding.muted ?? ADVANCED_DEFAULTS.muted,
-      border: branding.border ?? ADVANCED_DEFAULTS.border,
-      sidebar: branding.sidebar ?? ADVANCED_DEFAULTS.sidebar,
-      navbar: branding.navbar ?? ADVANCED_DEFAULTS.navbar,
-      foreground: branding.foreground ?? FOREGROUND_DEFAULT,
-    });
-  }, [branding, brandDefaults]);
-
-  const setBrandField = (k: BrandField) => (v: string) => setBrand((prev) => ({ ...prev, [k]: v }));
-  const setAdvancedField = (k: keyof typeof advanced) => (v: string) =>
-    setAdvanced((prev) => ({ ...prev, [k]: v }));
-  const setFb = (k: FeedbackField) => (v: string) => setFeedback((prev) => ({ ...prev, [k]: v }));
-
-  useEffect(() => {
-    applyBrandingToDocument({
-      ...branding,
-      ...brand,
-      background,
-      ...feedback,
-      card: optionalBrandingColor(branding.card, advanced.card, ADVANCED_DEFAULTS.card),
-      muted: optionalBrandingColor(branding.muted, advanced.muted, ADVANCED_DEFAULTS.muted),
-      border: optionalBrandingColor(branding.border, advanced.border, ADVANCED_DEFAULTS.border),
-      sidebar: optionalBrandingColor(branding.sidebar, advanced.sidebar, ADVANCED_DEFAULTS.sidebar),
-      navbar: optionalBrandingColor(branding.navbar, advanced.navbar, ADVANCED_DEFAULTS.navbar),
-      foreground: optionalBrandingColor(branding.foreground, advanced.foreground, FOREGROUND_DEFAULT),
-    });
-    return () => { applyBrandingToDocument(branding); };
-  }, [brand, background, feedback, advanced, branding]);
-
-  const Section = ({ title, description, children }: {
-    title: string; description: string; children: React.ReactNode;
-  }) => (
+  return (
     <div className="space-y-3">
       <div>
         <h3 className="text-sm font-semibold">{title}</h3>
@@ -511,30 +418,58 @@ function ColorsTab({
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{children}</div>
     </div>
   );
+}
+
+function ColorsTab({
+  branding, onSave, isSaving,
+}: {
+  branding: LibraryBranding;
+  onSave: (patch: Partial<LibraryBranding>) => void;
+  isSaving: boolean;
+}) {
+  const [accent, setAccent] = useState(branding.accent ?? BRAND_DEFAULTS.accent);
+  const [background, setBackground] = useState(branding.background ?? BACKGROUND_DEFAULT);
+  const [navbar, setNavbar] = useState(branding.navbar ?? NAVBAR_DEFAULT);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  useEffect(() => {
+    setAccent(branding.accent ?? BRAND_DEFAULTS.accent);
+    setBackground(branding.background ?? BACKGROUND_DEFAULT);
+    setNavbar(branding.navbar ?? NAVBAR_DEFAULT);
+  }, [branding]);
+
+  const applyLiveBranding = useCallback(
+    (bg: string) => {
+      applyBrandingToDocument({
+        ...branding,
+        accent,
+        background: bg,
+        foreground: undefined,
+        muted: undefined,
+        navbar: optionalBrandingColor(branding.navbar, navbar, NAVBAR_DEFAULT),
+      });
+    },
+    [accent, navbar, branding],
+  );
+
+  useEffect(() => {
+    applyLiveBranding(background);
+    return () => { applyBrandingToDocument(branding); };
+  }, [accent, background, navbar, branding, applyLiveBranding]);
 
   return (
     <div className="space-y-8">
-      <Section title="Brand" description="Primary brand color and secondary accent for highlights, CTAs, focus rings, and chips.">
-        <ColorPickerCard label="Primary" color={brand.primary} presets={COLOR_PRIMARY_PRESETS}
-          onChange={setBrandField("primary")} defaultColor={brandDefaults.primary} allowGradient />
-        {/* UI label "Secondary" maps to stored key accent — intentional; drives highlights/CTA/ring */}
-        <ColorPickerCard label="Secondary" color={brand.accent} presets={COLOR_ACCENT_PRESETS}
-          onChange={setBrandField("accent")} defaultColor={brandDefaults.accent} allowGradient />
-      </Section>
-
-      <Section title="Background" description="Page background. Card, muted, border, and chrome derive from this when unset.">
-        <ColorPickerCard label="Page background" color={background} presets={COLOR_BACKGROUND_PRESETS}
-          onChange={setBackground} defaultColor={BACKGROUND_DEFAULT} allowGradient />
-      </Section>
-
-      <Section title="Feedback" description="Status colors for alerts, badges, and banners. Optional overrides.">
-        <ColorPickerCard label="Destructive" color={feedback.destructive} presets={COLOR_DESTRUCTIVE_PRESETS}
-          onChange={setFb("destructive")} defaultColor={FEEDBACK_DEFAULTS.destructive} />
-        <ColorPickerCard label="Warning" color={feedback.warning} presets={COLOR_WARNING_PRESETS}
-          onChange={setFb("warning")} defaultColor={FEEDBACK_DEFAULTS.warning} />
-        <ColorPickerCard label="Success" color={feedback.success} presets={COLOR_SUCCESS_PRESETS}
-          onChange={setFb("success")} defaultColor={FEEDBACK_DEFAULTS.success} />
-      </Section>
+      <ColorsTabSection
+        title="Brand"
+        description="Primary sets page background, sidebar, and cards — badges and rings derive automatically. Secondary drives highlights, CTAs, and active navigation."
+      >
+        <ColorPickerCard label="Primary" color={background} presets={COLOR_BACKGROUND_PRESETS}
+          onChange={setBackground} onPreviewChange={applyLiveBranding}
+          defaultColor={BACKGROUND_DEFAULT} allowGradient gradientConstraints="branding" />
+        {/* UI label "Secondary" maps to stored key accent — intentional */}
+        <ColorPickerCard label="Secondary" color={accent} presets={COLOR_ACCENT_PRESETS}
+          onChange={setAccent} defaultColor={BRAND_DEFAULTS.accent} allowGradient />
+      </ColorsTabSection>
 
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
         <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md border px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors">
@@ -542,44 +477,30 @@ function ColorsTab({
           <ChevronDown className={cn("size-4 transition-transform", advancedOpen && "rotate-180")} />
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-4 space-y-6">
-          <Section title="Surfaces" description="Override derived card, muted, and border colors.">
-            <ColorPickerCard label="Card / Surface" color={advanced.card} presets={COLOR_CARD_PRESETS}
-              onChange={setAdvancedField("card")} defaultColor={ADVANCED_DEFAULTS.card} allowGradient />
-            <ColorPickerCard label="Muted" color={advanced.muted} presets={COLOR_MUTED_PRESETS}
-              onChange={setAdvancedField("muted")} defaultColor={ADVANCED_DEFAULTS.muted} />
-            <ColorPickerCard label="Border" color={advanced.border} presets={COLOR_BORDER_PRESETS}
-              onChange={setAdvancedField("border")} defaultColor={ADVANCED_DEFAULTS.border} />
-          </Section>
-          <Section title="Chrome" description="Sidebar and navbar follow background when unset.">
-            <ColorPickerCard label="Sidebar" color={advanced.sidebar} presets={COLOR_SIDEBAR_PRESETS}
-              onChange={setAdvancedField("sidebar")} defaultColor={ADVANCED_DEFAULTS.sidebar} allowGradient />
-            <ColorPickerCard label="Top navbar" color={advanced.navbar} presets={COLOR_NAVBAR_PRESETS}
-              onChange={setAdvancedField("navbar")} defaultColor={ADVANCED_DEFAULTS.navbar} allowGradient />
-          </Section>
-          <Section title="Text" description="Body text derives from background contrast when unset.">
-            <ColorPickerCard label="Foreground (neutral)" color={advanced.foreground} presets={COLOR_FOREGROUND_PRESETS}
-              onChange={setAdvancedField("foreground")} defaultColor={FOREGROUND_DEFAULT} />
-          </Section>
+          <ColorsTabSection title="Chrome" description="Top navbar follows background when unset.">
+            <ColorPickerCard label="Top navbar" color={navbar} presets={COLOR_NAVBAR_PRESETS}
+              onChange={setNavbar} defaultColor={NAVBAR_DEFAULT} allowGradient />
+          </ColorsTabSection>
         </CollapsibleContent>
       </Collapsible>
 
-      <div className="flex justify-end sticky bottom-0 bg-background/80 backdrop-blur py-2">
+      <div className="flex justify-end sticky bottom-0 py-2">
         <Button
           disabled={isSaving}
           onClick={() =>
             onSave({
-              primary: brand.primary || undefined,
-              accent: brand.accent || undefined,
+              primary: null,
+              accent: accent || undefined,
               background: background || undefined,
-              destructive: feedback.destructive || undefined,
-              success: feedback.success || undefined,
-              warning: feedback.warning || undefined,
-              card: optionalBrandingColor(branding.card, advanced.card, ADVANCED_DEFAULTS.card),
-              muted: optionalBrandingColor(branding.muted, advanced.muted, ADVANCED_DEFAULTS.muted),
-              border: optionalBrandingColor(branding.border, advanced.border, ADVANCED_DEFAULTS.border),
-              sidebar: optionalBrandingColor(branding.sidebar, advanced.sidebar, ADVANCED_DEFAULTS.sidebar),
-              navbar: optionalBrandingColor(branding.navbar, advanced.navbar, ADVANCED_DEFAULTS.navbar),
-              foreground: optionalBrandingColor(branding.foreground, advanced.foreground, FOREGROUND_DEFAULT),
+              destructive: null,
+              success: null,
+              warning: null,
+              card: null,
+              sidebar: null,
+              border: null,
+              muted: null,
+              foreground: null,
+              navbar: optionalBrandingColor(branding.navbar, navbar, NAVBAR_DEFAULT),
             })
           }
         >
@@ -676,7 +597,7 @@ function FontPicker({ label, value, onChange, sample, isHeading = false }: {
 const BUTTON_COLOR_DEFAULTS = {
   primary: { bg: "#0a2540", fg: "#ffffff" },
   secondary: { bg: "#e2e8f0", fg: "#0f172a" },
-  destructive: { bg: "#dc2626", fg: "#ffffff" },
+  destructive: { bg: FEEDBACK_COLORS.destructive, fg: "#ffffff" },
 } as const;
 
 function MiniButtonPreview({
@@ -846,24 +767,30 @@ function ButtonsTab({
   isSaving: boolean;
 }) {
   const legacyShape = migrateLegacyButtonShape(branding.button_radius, branding.button_style);
+  const derivedPrimaryBg = useMemo(
+    () => derivedEmphasisPrimaryHex(branding.background) ?? BUTTON_COLOR_DEFAULTS.primary.bg,
+    [branding.background],
+  );
+  const derivedDestructiveBg = useMemo(
+    () => derivedFeedbackHexFromBackground(branding.background, "destructive"),
+    [branding.background],
+  );
 
   const [primaryShape, setPrimaryShape] = useState<ButtonShape>(branding.button_primary_style ?? legacyShape);
   const [secondaryShape, setSecondaryShape] = useState<ButtonShape>(branding.button_secondary_style ?? legacyShape);
   const [destructiveShape, setDestructiveShape] = useState<ButtonShape>(branding.button_destructive_style ?? legacyShape);
 
-  const [primaryBg, setPrimaryBg] = useState(branding.button_bg ?? branding.primary ?? BUTTON_COLOR_DEFAULTS.primary.bg);
+  const [primaryBg, setPrimaryBg] = useState(branding.button_bg ?? derivedPrimaryBg);
   const [primaryFg, setPrimaryFg] = useState(branding.button_fg ?? BUTTON_COLOR_DEFAULTS.primary.fg);
   const [secondaryBg, setSecondaryBg] = useState(branding.button_secondary_bg ?? BUTTON_COLOR_DEFAULTS.secondary.bg);
   const [secondaryFg, setSecondaryFg] = useState(branding.button_secondary_fg ?? BUTTON_COLOR_DEFAULTS.secondary.fg);
-  const [destructiveBg, setDestructiveBg] = useState(
-    branding.button_destructive_bg ?? branding.destructive ?? BUTTON_COLOR_DEFAULTS.destructive.bg,
-  );
+  const [destructiveBg, setDestructiveBg] = useState(branding.button_destructive_bg ?? derivedDestructiveBg);
   const [destructiveFg, setDestructiveFg] = useState(branding.button_destructive_fg ?? BUTTON_COLOR_DEFAULTS.destructive.fg);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  const previewPrimary = branding.button_bg ?? branding.primary ?? BUTTON_COLOR_DEFAULTS.primary.bg;
+  const previewPrimary = branding.button_bg ?? derivedPrimaryBg;
   const previewSecondary = branding.button_secondary_bg ?? BUTTON_COLOR_DEFAULTS.secondary.bg;
-  const previewDestructive = branding.button_destructive_bg ?? branding.destructive ?? BUTTON_COLOR_DEFAULTS.destructive.bg;
+  const previewDestructive = branding.button_destructive_bg ?? derivedDestructiveBg;
   const previewPrimaryFg = branding.button_fg ?? BUTTON_COLOR_DEFAULTS.primary.fg;
   const previewSecondaryFg = branding.button_secondary_fg ?? BUTTON_COLOR_DEFAULTS.secondary.fg;
   const previewDestructiveFg = branding.button_destructive_fg ?? BUTTON_COLOR_DEFAULTS.destructive.fg;
@@ -873,13 +800,13 @@ function ButtonsTab({
     setPrimaryShape(branding.button_primary_style ?? l);
     setSecondaryShape(branding.button_secondary_style ?? l);
     setDestructiveShape(branding.button_destructive_style ?? l);
-    setPrimaryBg(branding.button_bg ?? branding.primary ?? BUTTON_COLOR_DEFAULTS.primary.bg);
+    setPrimaryBg(branding.button_bg ?? derivedPrimaryBg);
     setPrimaryFg(branding.button_fg ?? BUTTON_COLOR_DEFAULTS.primary.fg);
     setSecondaryBg(branding.button_secondary_bg ?? BUTTON_COLOR_DEFAULTS.secondary.bg);
     setSecondaryFg(branding.button_secondary_fg ?? BUTTON_COLOR_DEFAULTS.secondary.fg);
-    setDestructiveBg(branding.button_destructive_bg ?? branding.destructive ?? BUTTON_COLOR_DEFAULTS.destructive.bg);
+    setDestructiveBg(branding.button_destructive_bg ?? derivedDestructiveBg);
     setDestructiveFg(branding.button_destructive_fg ?? BUTTON_COLOR_DEFAULTS.destructive.fg);
-  }, [branding]);
+  }, [branding, derivedPrimaryBg, derivedDestructiveBg]);
 
   useEffect(() => {
     applyBrandingToDocument({
@@ -925,7 +852,7 @@ function ButtonsTab({
         <CollapsibleContent className="pt-4 space-y-4">
           <Card className="p-6 space-y-4">
             <p className="text-xs text-muted-foreground">
-              Override derived button colors. Leave at defaults to inherit from brand and feedback tokens.
+              Override derived button colors. Leave at defaults to inherit from primary and feedback tokens.
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <CompactColorField label="Primary background" color={primaryBg} onChange={setPrimaryBg}
@@ -949,8 +876,7 @@ function ButtonsTab({
         <Button
           disabled={isSaving}
           onClick={() => {
-            const derivedPrimaryBg = branding.primary ?? BUTTON_COLOR_DEFAULTS.primary.bg;
-            const derivedDestructiveBg = branding.destructive ?? BUTTON_COLOR_DEFAULTS.destructive.bg;
+            const derivedDestructiveBg = derivedFeedbackHexFromBackground(branding.background, "destructive");
             onSave({
               button_primary_style: primaryShape,
               button_secondary_style: secondaryShape,
